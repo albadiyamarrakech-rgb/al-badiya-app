@@ -140,22 +140,38 @@ if menu == "Dashboard & KPI":
     st.subheader("Tabella Prenotazioni Registrate")
 
     if not df_b.empty:
-        # Colonne preferenziali e ripulite (niente created_at, niente colonne tecniche)
-        colonne_ordinate = [
-            c for c in ["check_in", "check_out", "nights", "gross_price", "commission", "cleaning_fee", "net_price", "month", "year"]
-            if c in df_b.columns
+        # Ordine logico basato sul tuo file Excel
+        ordine_ideale = [
+            "id", "client", "channel", 
+            "check_in", "check_out", "nights", 
+            "gross_price", "commission", "cleaning_fee", "net_price"
         ]
         
-        # Se ci sono altre colonne utili nel database non escluse, mostrale prima di escludere created_at
-        altre_colonne = [c for c in df_b.columns if c not in colonne_ordinate and c != "created_at" and not c.startswith("_")]
-        display_cols = colonne_ordinate + altre_colonne
-
-        if "_check_in_dt" in df_b.columns:
-            df_display = df_b.sort_values(by="_check_in_dt", ascending=False)[display_cols]
-        else:
-            df_display = df_b[display_cols]
-
-        st.dataframe(df_display, use_container_width=True)
+        # Filtra solo le colonne effettivamente presenti nel database
+        display_cols = [c for c in ordine_ideale if c in df_b.columns]
+        df_display = df_b[display_cols].copy()
+        
+        # Rinomina le intestazioni per renderle eleganti
+        rename_dict = {
+            "id": "ID",
+            "client": "Ospite",
+            "channel": "Canale",
+            "check_in": "Check-in",
+            "check_out": "Check-out",
+            "nights": "Notti",
+            "gross_price": "Lordo (€)",
+            "commission": "Comm. (€)",
+            "cleaning_fee": "Pulizie (€)",
+            "net_price": "Netto (€)"
+        }
+        df_display = df_display.rename(columns=rename_dict)
+        
+        # Ordina cronologicamente dal check-in più recente
+        if "Check-in" in df_display.columns:
+            df_display["Check-in"] = pd.to_datetime(df_display["Check-in"]).dt.date
+            df_display = df_display.sort_values(by="Check-in", ascending=False)
+            
+        st.dataframe(df_display, use_container_width=True, hide_index=True)
     else:
         st.info("Nessuna prenotazione presente nel database.")
 

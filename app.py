@@ -1,9 +1,11 @@
 import os
+import calendar
 import streamlit as st
 import pandas as pd
 import numpy as np
 from datetime import datetime, date, timedelta
 from supabase import create_client, Client
+import base64
 
 # ----------------------------------------------------
 # 1. CONFIGURAZIONE PAGINA & BRANDING
@@ -17,7 +19,21 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Mostra il logo nella barra laterale
+def setup_home_screen_icon(image_path="logo.png"):
+    if os.path.exists(image_path):
+        with open(image_path, "rb") as f:
+            encoded_img = base64.b64encode(f.read()).decode("utf-8")
+        st.markdown(
+            f"""
+            <link rel="apple-touch-icon" href="data:image/png;base64,{encoded_img}">
+            <link rel="apple-touch-icon-precomposed" href="data:image/png;base64,{encoded_img}">
+            <link rel="shortcut icon" href="data:image/png;base64,{encoded_img}">
+            """,
+            unsafe_allow_html=True
+        )
+
+setup_home_screen_icon("logo.png")
+
 if os.path.exists("logo.png"):
     st.sidebar.image("logo.png", use_container_width=True)
 
@@ -49,20 +65,6 @@ def load_bookings():
     try:
         res = supabase.table("bookings").select("*").execute()
         df = pd.DataFrame(res.data)
-        if df.empty:
-            return pd.DataFrame()
-
-        # Riconoscimento data check-in per ordinamento
-        if "check_in" in df.columns:
-            df["_check_in_dt"] = pd.to_datetime(df["check_in"], errors="coerce").dt.date
-        elif "data_in" in df.columns:
-            df["_check_in_dt"] = pd.to_datetime(df["data_in"], errors="coerce").dt.date
-
-        # Converti i campi finanziari in numerici
-        for col in ["gross_price", "net_price", "commission", "cleaning_fee", "nights"]:
-            if col in df.columns:
-                df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0.0)
-
         return df
     except Exception as e:
         st.error(f"Errore caricamento prenotazioni: {e}")
@@ -74,31 +76,16 @@ def load_bills():
     try:
         res = supabase.table("bills").select("*").execute()
         df = pd.DataFrame(res.data)
-        if df.empty:
-            return pd.DataFrame()
-
-        # Identifica importo spesa
-        for col in df.columns:
-            c_low = col.lower()
-            if any(k in c_low for k in ["amount", "importo", "spesa", "costo", "total", "price"]):
-                df["amount"] = pd.to_numeric(df[col], errors="coerce").fillna(0.0)
-                break
-        if "amount" not in df.columns:
-            df["amount"] = 0.0
-
         return df
     except Exception as e:
         st.error(f"Errore caricamento spese: {e}")
         return pd.DataFrame()
 
 def get_seasonality_factor(dt: date):
-    # Capodanno (28 Dicembre - 3 Gennaio)
     if (dt.month == 12 and dt.day >= 28) or (dt.month == 1 and dt.day <= 3):
         return 1.45, "Capodanno (+45%)"
-    # Festività natalizie o primavera
     if (dt.month == 12 and dt.day >= 20) or (dt.month == 4 and 10 <= dt.day <= 25):
         return 1.25, "Alta Stagione (+25%)"
-    # Weekend (Venerdì e Sabato)
     if dt.weekday() in [4, 5]:
         return 1.15, "Weekend (+15%)"
     return 1.00, "Standard (Feriale)"
@@ -119,15 +106,19 @@ if menu == "Dashboard & KPI":
     df_b = load_bookings()
     df_exp = load_bills()
 
-    # Ricavi calcolati da gross_price (o net_price se preferisci)
-    if not df_b.empty and "gross_price" in df_b.columns:
-        total_revenue = df_b["gross_price"].sum()
-        total_net = df_b["net_price"].sum() if "net_price" in df_b.columns else total_revenue
-    else:
-        total_revenue = 0.0
-        total_net = 0.0
+    # Assicurati che le colonne di calcolo siano numeriche
+    if not df_b.empty:
+        for c in ["gross_price", "net_price"]:
+            if c in df_b.columns:
+                df_b[c] = pd.to_numeric(df_b[c], errors="coerce").fillna(0.0)
 
-    total_bills = df_exp["amount"].sum() if not df_exp.empty else 0.0
+    if not df_exp.empty:
+        if "amount" in df_exp.columns:
+            df_exp["amount"] = pd.to_numeric(df_exp["amount"], errors="coerce").fillna(0.0)
+
+    total_revenue = df_b["gross_price"].sum() if not df_b.empty and "gross_price" in df_b.columns else 0.0
+    total_net = df_b["net_price"].sum() if not df_b.empty and "net_price" in df_b.columns else total_revenue
+    total_bills = df_exp["amount"].sum() if not df_exp.empty and "amount" in df_exp.columns else 0.0
     net_margin = total_net - total_bills
 
     col1, col2, col3 = st.columns(3)
@@ -140,18 +131,15 @@ if menu == "Dashboard & KPI":
     st.subheader("Tabella Prenotazioni Registrate")
 
     if not df_b.empty:
-        # Ordine logico basato sul tuo file Excel
         ordine_ideale = [
             "id", "client", "channel", 
             "check_in", "check_out", "nights", 
             "gross_price", "commission", "cleaning_fee", "net_price"
         ]
         
-        # Filtra solo le colonne effettivamente presenti nel database
         display_cols = [c for c in ordine_ideale if c in df_b.columns]
         df_display = df_b[display_cols].copy()
         
-        # Rinomina le intestazioni per renderle eleganti
         rename_dict = {
             "id": "ID",
             "client": "Ospite",
@@ -166,7 +154,10 @@ if menu == "Dashboard & KPI":
         }
         df_display = df_display.rename(columns=rename_dict)
         
-        # Ordina cronologicamente dal check-in più recente
+        for col in ["Lordo (€)", "Comm. (€)", "Pulizie (€)", "Netto (€)"]:
+            if col in df_display.columns:
+                df_display[col] = pd.to_numeric(df_display[col], errors='coerce').apply(lambda x: f"{x:.2f}" if pd.notnull(x) else "0.00")
+        
         if "Check-in" in df_display.columns:
             df_display["Check-in"] = pd.to_datetime(df_display["Check-in"]).dt.date
             df_display = df_display.sort_values(by="Check-in", ascending=False)
@@ -182,16 +173,20 @@ elif menu == "Nuova Prenotazione":
     st.title("📝 Inserimento Nuova Prenotazione (€)")
     with st.form("booking_form", clear_on_submit=True):
         col1, col2 = st.columns(2)
-        check_in = col1.date_input("Data Check-in", value=date.today())
-        check_out = col2.date_input("Data Check-out", value=date.today() + timedelta(days=1))
-
+        client = col1.text_input("Nome Ospite")
+        channel = col2.text_input("Canale (es. Booking, Airbnb, Diretto)")
+        
         col3, col4 = st.columns(2)
-        nights = col3.number_input("Numero Notti", min_value=1, value=max((check_out - check_in).days, 1))
-        gross_price = col4.number_input("Prezzo Lordo (€)", min_value=0.0, step=5.0, value=70.0)
+        check_in = col3.date_input("Data Check-in", value=date.today())
+        check_out = col4.date_input("Data Check-out", value=date.today() + timedelta(days=1))
 
         col5, col6 = st.columns(2)
-        commission = col5.number_input("Commissioni (€)", min_value=0.0, step=1.0, value=10.0)
-        cleaning_fee = col6.number_input("Costi Pulizie (€)", min_value=0.0, step=1.0, value=10.0)
+        nights = col5.number_input("Numero Notti", min_value=1, value=max((check_out - check_in).days, 1))
+        gross_price = col6.number_input("Prezzo Lordo (€)", min_value=0.0, step=5.0, value=70.0)
+
+        col7, col8 = st.columns(2)
+        commission = col7.number_input("Commissioni (€)", min_value=0.0, step=1.0, value=10.0)
+        cleaning_fee = col8.number_input("Costi Pulizie (€)", min_value=0.0, step=1.0, value=10.0)
 
         net_price = max(0.0, gross_price - commission - cleaning_fee)
         st.info(f"💡 Ricavo Netto Calcolato: **€ {net_price:.2f}**")
@@ -201,8 +196,12 @@ elif menu == "Nuova Prenotazione":
         if submitted:
             if check_out <= check_in:
                 st.error("La data di check-out deve essere successiva al check-in.")
+            elif not client or not channel:
+                st.error("Inserisci il Nome Ospite e il Canale.")
             else:
                 new_data = {
+                    "client": client,
+                    "channel": channel,
                     "check_in": check_in.isoformat(),
                     "check_out": check_out.isoformat(),
                     "nights": int(nights),
@@ -238,6 +237,7 @@ elif menu == "Registro Spese":
 
             btn_bill = st.form_submit_button("Salva Spesa")
             if btn_bill:
+                # Struttura adattata per accogliere i DB generici se utilizzati
                 bill_data = {
                     "category": bill_type,
                     "date": bill_date.isoformat(),
@@ -256,12 +256,32 @@ elif menu == "Registro Spese":
     df_exp = load_bills()
     if not df_exp.empty:
         cols_exp = [c for c in df_exp.columns if c != "created_at" and not c.startswith("_")]
-        st.dataframe(df_exp[cols_exp], use_container_width=True)
+        df_exp_display = df_exp[cols_exp].copy()
+        
+        # Capitalizza la prima lettera di ogni colonna
+        rename_exp = {col: col.capitalize() for col in df_exp_display.columns}
+        
+        # Aggiunge il simbolo € e forza a 2 decimali per le colonne note come finanziarie
+        fin_cols = ['electricity', 'water', 'internet', 'extra', 'total_bills', 'amount', 'category']
+        for col in fin_cols:
+            if col in df_exp_display.columns and pd.api.types.is_numeric_dtype(df_exp_display[col]):
+                 rename_exp[col] = f"{col.capitalize()} (€)"
+                 df_exp_display[col] = pd.to_numeric(df_exp_display[col], errors='coerce').apply(lambda x: f"{x:.2f}" if pd.notnull(x) else "0.00")
+                 
+        df_exp_display = df_exp_display.rename(columns=rename_exp)
+        
+        if "Month" in df_exp_display.columns:
+            try:
+                df_exp_display["Month"] = pd.to_datetime(df_exp_display["Month"]).dt.date
+            except:
+                pass
+                
+        st.dataframe(df_exp_display, use_container_width=True, hide_index=True)
     else:
         st.info("Nessuna spesa presente.")
 
 # ----------------------------------------------------
-# SEZIONE 4: FORECAST & PRICING DINAMICO (COERENTE AI TUOI PREZZI REALI)
+# SEZIONE 4: FORECAST & PRICING DINAMICO
 # ----------------------------------------------------
 elif menu == "Forecast & Pricing Dinamico":
     st.title("🎯 Revenue Management: Tariffe Giornaliere Consigliate")
@@ -269,14 +289,18 @@ elif menu == "Forecast & Pricing Dinamico":
 
     df_b = load_bookings()
     
-    # Calcola il prezzo medio reale a notte dal database (default € 70 se vuoto)
     if not df_b.empty and "gross_price" in df_b.columns and "nights" in df_b.columns:
         valid_b = df_b[df_b["nights"] > 0]
         if not valid_b.empty:
+            valid_b["gross_price"] = pd.to_numeric(valid_b["gross_price"], errors="coerce")
+            valid_b["nights"] = pd.to_numeric(valid_b["nights"], errors="coerce")
             avg_night_rate = (valid_b["gross_price"] / valid_b["nights"]).median()
         else:
             avg_night_rate = 70.0
     else:
+        avg_night_rate = 70.0
+
+    if pd.isna(avg_night_rate) or avg_night_rate == 0:
         avg_night_rate = 70.0
 
     col_c1, col_c2 = st.columns(2)
@@ -285,8 +309,6 @@ elif menu == "Forecast & Pricing Dinamico":
 
     factor, desc = get_seasonality_factor(target_date)
 
-    # Prezzo Minimo accettabile (Floor: -15% rispetto alla base per garantire occupazione)
-    # Prezzo Ottimale di vendita (Target: prezzo base + stagionalità)
     price_floor = (base_price * 0.85) * factor
     price_target = base_price * factor
 
@@ -294,7 +316,7 @@ elif menu == "Forecast & Pricing Dinamico":
     st.info(f"Periodo Rilevato ({target_date.strftime('%d/%m/%Y')}): **{desc}**")
 
     m1, m2 = st.columns(2)
-    m1.metric("Prezzo Minimo Accettabile (Floor)", f"€ {price_floor:,.2f}", help="Soglia minima per riempire i buchi infrasettimanali")
+    m1.metric("Prezzo Minimo Accettabile (Floor)", f"€ {price_floor:,.2f}", help="Soglia minima per riempire i buchi")
     m2.metric("Prezzo Ottimale di Vendita (Target)", f"€ {price_target:,.2f}", help="Tariffa consigliata per massimizzare il ricavo")
 
     st.markdown("---")
@@ -316,11 +338,9 @@ elif menu == "Forecast & Pricing Dinamico":
 # SEZIONE 5: CALENDARIO VISIVO A GRIGLIA
 # ----------------------------------------------------
 elif menu == "Calendario":
-    import calendar
     
     st.title("📅 Calendario Occupazione")
     
-    # Selettori per Mese e Anno
     col1, col2, _ = st.columns([1, 1, 2])
     with col1:
         sel_month = st.selectbox("Mese", range(1, 13), index=date.today().month - 1)
@@ -329,7 +349,6 @@ elif menu == "Calendario":
         
     df_b = load_bookings()
     
-    # 1. Calcola tutti i giorni occupati dalle prenotazioni
     occupied_dates = set()
     if not df_b.empty and "check_in" in df_b.columns and "check_out" in df_b.columns:
         for _, row in df_b.iterrows():
@@ -342,11 +361,9 @@ elif menu == "Calendario":
             except:
                 pass
 
-    # 2. Genera la struttura del mese
     cal = calendar.monthcalendar(sel_year, sel_month)
     giorni_settimana = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"]
     
-    # 3. Costruzione stringa HTML (Senza indentazioni per evitare il blocco codice)
     html_content = ""
     html_content += "<style>"
     html_content += ".cal-container { display: grid; grid-template-columns: repeat(7, 1fr); gap: 10px; font-family: sans-serif; margin-top: 20px; }"
@@ -362,11 +379,9 @@ elif menu == "Calendario":
     
     html_content += "<div class='cal-container'>"
     
-    # Intestazioni dei giorni
     for day_name in giorni_settimana:
         html_content += f"<div class='cal-header'>{day_name}</div>"
         
-    # Celle dei giorni
     for week in cal:
         for day in week:
             if day == 0:
@@ -377,13 +392,12 @@ elif menu == "Calendario":
                 is_past = current_date < date.today()
                 
                 base_price = 70
-                if current_date.weekday() in [4, 5]: # Ven e Sab costano di più
+                if current_date.weekday() in [4, 5]: 
                     base_price += 15
                 
                 css_class = "cal-day occupied" if (is_occupied or is_past) else "cal-day"
                 badge = "Occupato" if is_occupied else "Min. 1 notte"
                 
-                # Inserimento campi senza rientri per la corretta lettura in Streamlit
                 html_content += f"<div class='{css_class}'>"
                 html_content += f"<div class='day-num'>{day}</div>"
                 html_content += f"<div class='day-price'>{base_price} €</div>"
@@ -392,5 +406,4 @@ elif menu == "Calendario":
     
     html_content += "</div>"
     
-    # Renderizza HTML puro senza farlo interpretare come testo
     st.markdown(html_content, unsafe_allow_html=True)

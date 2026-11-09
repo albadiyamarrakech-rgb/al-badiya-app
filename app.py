@@ -9,7 +9,6 @@ import matplotlib.pyplot as plt
 # ----------------------------------------------------
 # 1. CONFIGURAZIONE PAGINA E BRANDING
 # ----------------------------------------------------
-# Verifica se il logo è presente nella stessa cartella per usarlo come icona
 page_icon = "logo.png" if os.path.exists("logo.png") else "🏨"
 
 st.set_page_config(
@@ -19,7 +18,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Mostra il logo nella barra laterale se disponibile
+# Mostra il logo in cima al menu laterale
 if os.path.exists("logo.png"):
     st.sidebar.image("logo.png", use_container_width=True)
 
@@ -29,7 +28,6 @@ st.sidebar.caption("Revenue Management & Gestione Struttura")
 # ----------------------------------------------------
 # 2. CONNESSIONE SUPABASE
 # ----------------------------------------------------
-# Le credenziali vengono lette dai Secrets di Streamlit oppure da variabili d'ambiente
 SUPABASE_URL = st.secrets.get("SUPABASE_URL", os.environ.get("SUPABASE_URL", "https://rkicgvfzoptideeaylog.supabase.co"))
 SUPABASE_KEY = st.secrets.get("SUPABASE_KEY", os.environ.get("SUPABASE_KEY", "sb_publishable_pWP_qrEggQdTlbqeNiX1Tg_KsrHkyeg"))
 
@@ -44,37 +42,107 @@ except Exception as e:
     supabase = None
 
 # ----------------------------------------------------
-# 3. FUNZIONI DATI (BOOKINGS & BILLS)
+# 3. FUNZIONI DATI CON GESTIONE FLESSIBILE COLONNE
 # ----------------------------------------------------
 def load_bookings():
     if not supabase:
         return pd.DataFrame()
-    res = supabase.table("bookings").select("*").execute()
-    df = pd.DataFrame(res.data)
-    if not df.empty:
-        df["check_in"] = pd.to_datetime(df["check_in"]).dt.date
-        df["check_out"] = pd.to_datetime(df["check_out"]).dt.date
-        df["total_price"] = pd.to_numeric(df["total_price"], errors="coerce").fillna(0.0)
-    return df
+    try:
+        res = supabase.table("bookings").select("*").execute()
+        df = pd.DataFrame(res.data)
+        if df.empty:
+            return pd.DataFrame()
+
+        # Riconoscimento data check-in
+        for col in ["check_in", "checkin", "data_in", "start_date"]:
+            if col in df.columns:
+                df["check_in"] = pd.to_datetime(df[col], errors="coerce").dt.date
+                break
+        if "check_in" not in df.columns:
+            df["check_in"] = date.today()
+
+        # Riconoscimento data check-out
+        for col in ["check_out", "checkout", "data_out", "end_date"]:
+            if col in df.columns:
+                df["check_out"] = pd.to_datetime(df[col], errors="coerce").dt.date
+                break
+        if "check_out" not in df.columns:
+            df["check_out"] = date.today() + timedelta(days=1)
+
+        # Riconoscimento colonna prezzo
+        price_col_found = None
+        for col in ["total_price", "price", "prezzo", "prezzo_totale", "total", "amount", "importo"]:
+            if col in df.columns:
+                price_col_found = col
+                break
+        
+        if price_col_found:
+            df["total_price"] = pd.to_numeric(df[price_col_found], errors="coerce").fillna(0.0)
+        else:
+            df["total_price"] = 0.0
+
+        # Riconoscimento nome ospite
+        for col in ["guest_name", "ospite", "nome", "guest", "cliente"]:
+            if col in df.columns:
+                df["guest_name"] = df[col].astype(str)
+                break
+        if "guest_name" not in df.columns:
+            df["guest_name"] = "Ospite"
+
+        # Stato prenotazione
+        for col in ["status", "stato"]:
+            if col in df.columns:
+                df["status"] = df[col].astype(str)
+                break
+        if "status" not in df.columns:
+            df["status"] = "Confermata"
+
+        return df
+    except Exception as e:
+        st.error(f"Errore caricamento prenotazioni: {e}")
+        return pd.DataFrame()
 
 def load_bills():
     if not supabase:
         return pd.DataFrame()
-    res = supabase.table("bills").select("*").execute()
-    df = pd.DataFrame(res.data)
-    if not df.empty:
-        df["date"] = pd.to_datetime(df["date"]).dt.date
-        df["amount"] = pd.to_numeric(df["amount"], errors="coerce").fillna(0.0)
-    return df
+    try:
+        res = supabase.table("bills").select("*").execute()
+        df = pd.DataFrame(res.data)
+        if df.empty:
+            return pd.DataFrame()
 
-# Festività di punta Al Badiya (Capodanno, festività primaverili/autunnali)
+        # Data spesa
+        for col in ["date", "data", "created_at"]:
+            if col in df.columns:
+                df["date"] = pd.to_datetime(df[col], errors="coerce").dt.date
+                break
+        if "date" not in df.columns:
+            df["date"] = date.today()
+
+        # Importo spesa
+        amount_col_found = None
+        for col in ["amount", "importo", "prezzo", "total", "price"]:
+            if col in df.columns:
+                amount_col_found = col
+                break
+        
+        if amount_col_found:
+            df["amount"] = pd.to_numeric(df[amount_col_found], errors="coerce").fillna(0.0)
+        else:
+            df["amount"] = 0.0
+
+        return df
+    except Exception as e:
+        st.error(f"Errore caricamento spese: {e}")
+        return pd.DataFrame()
+
 def get_seasonality_factor(dt: date):
     # Capodanno (28 Dicembre - 3 Gennaio)
     if (dt.month == 12 and dt.day >= 28) or (dt.month == 1 and dt.day <= 3):
         return 1.60, "Capodanno (+60%)"
-    # Festività invernali / Pasquali / ponti
+    # Festività / Ponti primaverili
     if (dt.month == 12 and dt.day >= 20) or (dt.month == 4 and 10 <= dt.day <= 25):
-        return 1.30, "Alta Stagione / Festività (+30%)"
+        return 1.30, "Alta Stagione (+30%)"
     # Weekend (Venerdì e Sabato notte)
     if dt.weekday() in [4, 5]:
         return 1.20, "Weekend (+20%)"
@@ -103,12 +171,14 @@ if menu == "Dashboard & KPI":
     col1, col2, col3 = st.columns(3)
     col1.metric("Ricavi Totali", f"{total_revenue:,.2f} MAD")
     col2.metric("Spese / Bollette", f"{total_bills:,.2f} MAD")
-    col3.metric("Margine Operativo Netto", f"{net_margin:,.2f} MAD", delta=f"{(net_margin/total_revenue*100) if total_revenue else 0:.1f}%")
+    margin_pct = (net_margin / total_revenue * 100) if total_revenue > 0 else 0.0
+    col3.metric("Margine Operativo Netto", f"{net_margin:,.2f} MAD", delta=f"{margin_pct:.1f}%")
 
     st.markdown("---")
     st.subheader("Ultime Prenotazioni Registrate")
     if not df_b.empty:
-        st.dataframe(df_b.sort_values(by="check_in", ascending=False).head(10), use_container_width=True)
+        display_cols = [c for c in ["guest_name", "check_in", "check_out", "total_price", "status"] if c in df_b.columns]
+        st.dataframe(df_b.sort_values(by="check_in", ascending=False)[display_cols].head(10), use_container_width=True)
     else:
         st.info("Nessuna prenotazione presente nel database.")
 
@@ -149,6 +219,7 @@ elif menu == "Nuova Prenotazione":
                 try:
                     supabase.table("bookings").insert(new_data).execute()
                     st.success(f"Prenotazione per {guest_name} salvata con successo!")
+                    st.rerun()
                 except Exception as e:
                     st.error(f"Errore nel salvataggio su Supabase: {e}")
 
@@ -179,8 +250,9 @@ elif menu == "Registro Bollette & Spese":
                 try:
                     supabase.table("bills").insert(bill_data).execute()
                     st.success("Spesa registrata con successo!")
+                    st.rerun()
                 except Exception as e:
-                    st.error(f"Errore: {e}")
+                    st.error(f"Errore nel salvataggio: {e}")
 
     st.markdown("---")
     st.subheader("Storico Spese")
@@ -195,12 +267,10 @@ elif menu == "Registro Bollette & Spese":
 # ----------------------------------------------------
 elif menu == "Forecast & Pricing Dinamico":
     st.title("🎯 Revenue Management: Calcolo Prezzi")
-    st.write("Modello tariffario basato sui costi unitari con soglia di markup protetta.")
+    st.write("Modello tariffario basato sui costi operativi con soglia di markup protetta.")
 
     df_exp = load_bills()
     total_bills = df_exp["amount"].sum() if not df_exp.empty else 15000.0
-    
-    # Stima costo medio giornaliero base (default 30 gg mese o storico)
     estimated_daily_cost = total_bills / 30 if total_bills > 0 else 350.0
 
     col_c1, col_c2 = st.columns(2)
@@ -209,7 +279,6 @@ elif menu == "Forecast & Pricing Dinamico":
 
     factor, desc = get_seasonality_factor(target_date)
 
-    # Parametri di Revenue Management protetto
     MARKUP_FLOOR = 2.88
     MARKUP_TARGET = 3.50
 
@@ -217,15 +286,14 @@ elif menu == "Forecast & Pricing Dinamico":
     price_target = (base_cost * MARKUP_TARGET) * factor
 
     st.markdown("### Raccomandazione Tariffaria")
-    st.info(f"Fattore Applicato per la data ({target_date.strftime('%d/%m/%Y')}): **{desc}**")
+    st.info(f"Fattore Applicato ({target_date.strftime('%d/%m/%Y')}): **{desc}**")
 
     m1, m2 = st.columns(2)
-    m1.metric("Prezzo Minimo Protetto (Floor 2.88x)", f"{price_floor:,.2f} MAD", help="Prezzo al di sotto del quale non scendere nemmeno in bassa domanda")
+    m1.metric("Prezzo Minimo Protetto (Floor 2.88x)", f"{price_floor:,.2f} MAD", help="Prezzo al di sotto del quale non scendere")
     m2.metric("Prezzo Ottimale di Vendita (Target 3.50x)", f"{price_target:,.2f} MAD", help="Prezzo consigliato per massimizzare la marginalità")
 
-    # Simulazione mese intero
     st.markdown("---")
-    st.subheader(f"Forecast Settimanale ({target_date.strftime('%B %Y')})")
+    st.subheader(f"Forecast Prossimi 7 Giorni")
     
     forecast_days = [target_date + timedelta(days=i) for i in range(7)]
     forecast_data = []
@@ -248,11 +316,8 @@ elif menu == "Calendario":
 
     if not df_b.empty:
         df_active = df_b[df_b["status"] != "Cancellata"]
-        st.write("Visualizzazione date occupate:")
-        
         selected_month = st.selectbox("Seleziona Mese", options=list(range(1, 13)), index=date.today().month - 1)
         
-        # Filtro per mese
         month_bookings = []
         for _, row in df_active.iterrows():
             if row["check_in"].month == selected_month or row["check_out"].month == selected_month:

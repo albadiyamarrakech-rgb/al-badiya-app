@@ -18,6 +18,24 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+import base64
+
+# Imposta il logo come icona ufficiale per la schermata Home di iPhone/Android
+def setup_home_screen_icon(image_path="logo.png"):
+    if os.path.exists(image_path):
+        with open(image_path, "rb") as f:
+            encoded_img = base64.b64encode(f.read()).decode("utf-8")
+        st.markdown(
+            f"""
+            <link rel="apple-touch-icon" href="data:image/png;base64,{encoded_img}">
+            <link rel="apple-touch-icon-precomposed" href="data:image/png;base64,{encoded_img}">
+            <link rel="shortcut icon" href="data:image/png;base64,{encoded_img}">
+            """,
+            unsafe_allow_html=True
+        )
+
+setup_home_screen_icon("logo.png")
+
 # Visualizzazione Logo Al Badiya nella barra laterale
 if os.path.exists("logo.png"):
     st.sidebar.image("logo.png", use_container_width=True)

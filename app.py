@@ -297,61 +297,93 @@ elif menu == "Forecast & Pricing Dinamico":
     st.table(pd.DataFrame(forecast_data))
 
 # ----------------------------------------------------
-# SEZIONE 5: CALENDARIO VISIVO OCCUPAZIONE
+# SEZIONE 5: CALENDARIO VISIVO A GRIGLIA
 # ----------------------------------------------------
 elif menu == "Calendario":
-    import altair as alt
+    import calendar
     
     st.title("📅 Calendario Occupazione")
+    
+    # Selettori per Mese e Anno
+    col1, col2, _ = st.columns([1, 1, 2])
+    with col1:
+        sel_month = st.selectbox("Mese", range(1, 13), index=date.today().month - 1)
+    with col2:
+        sel_year = st.selectbox("Anno", [date.today().year, date.today().year + 1])
+        
     df_b = load_bookings()
-
+    
+    # 1. Calcola tutti i giorni occupati dalle prenotazioni
+    occupied_dates = set()
     if not df_b.empty and "check_in" in df_b.columns and "check_out" in df_b.columns:
-        st.write("Colpo d'occhio sulle date occupate:")
-        
-        # Prepariamo i dati per il grafico visivo
-        df_cal = df_b.copy()
-        df_cal["check_in"] = pd.to_datetime(df_cal["check_in"])
-        df_cal["check_out"] = pd.to_datetime(df_cal["check_out"])
-        df_cal["Struttura"] = "Al Badiya" # Asse Y fisso per la struttura
-        
-        # Creiamo la Timeline Visiva (Gantt Chart)
-        chart = alt.Chart(df_cal).mark_bar(cornerRadius=4, height=40).encode(
-            x=alt.X('check_in:T', title='Linea del Tempo'),
-            x2='check_out:T',
-            y=alt.Y('Struttura:N', title='', axis=alt.Axis(labels=False, ticks=False)),
-            color=alt.Color('gross_price:Q', scale=alt.Scale(scheme='blues'), title='Prezzo (€)'),
-            tooltip=[
-                alt.Tooltip('check_in:T', title='Check-in', format='%d/%m/%Y'),
-                alt.Tooltip('check_out:T', title='Check-out', format='%d/%m/%Y'),
-                alt.Tooltip('nights:Q', title='Notti'),
-                alt.Tooltip('gross_price:Q', title='Prezzo Lordo (€)')
-            ]
-        ).properties(height=150)
-        
-        st.altair_chart(chart, use_container_width=True)
+        for _, row in df_b.iterrows():
+            try:
+                ci = pd.to_datetime(row["check_in"]).date()
+                co = pd.to_datetime(row["check_out"]).date()
+                # Aggiunge all'elenco tutte le notti tra check-in e check-out
+                delta = co - ci
+                for i in range(delta.days):
+                    occupied_dates.add(ci + timedelta(days=i))
+            except:
+                pass
 
-        # Tabella di riepilogo sottostante formattata in Euro
-        st.markdown("---")
-        st.write("Dettaglio prenotazioni confermate:")
+    # 2. Genera la struttura del mese
+    cal = calendar.monthcalendar(sel_year, sel_month)
+    giorni_settimana = ["lun", "mar", "mer", "gio", "ven", "sab", "dom"]
+    
+    # 3. Costruisce la griglia in HTML/CSS in stile Airbnb/Booking
+    html_content = """
+    <style>
+        .cal-container { display: grid; grid-template-columns: repeat(7, 1fr); gap: 12px; font-family: sans-serif; margin-top: 20px; }
+        .cal-header { text-align: center; font-weight: normal; font-size: 0.9em; color: #888; padding-bottom: 5px; }
+        .cal-day { border: 1px solid #e0e0e0; border-radius: 12px; padding: 12px; min-height: 110px; display: flex; flex-direction: column; justify-content: space-between; background-color: transparent; }
+        .cal-day.empty { border: none; background: transparent; }
+        .cal-day.occupied { opacity: 0.5; background-color: rgba(200, 200, 200, 0.1); }
+        .cal-day.occupied .day-num { text-decoration: line-through; color: #888; }
+        .day-num { font-size: 1.2em; font-weight: bold; margin-bottom: 8px; }
+        .day-price { font-size: 0.95em; margin-bottom: 5px; }
+        .day-badge { font-size: 0.75em; background-color: rgba(150, 150, 150, 0.2); padding: 4px 6px; border-radius: 4px; display: inline-block; }
+    </style>
+    <div class="cal-container">
+    """
+    
+    # Intestazioni dei giorni
+    for day_name in giorni_settimana:
+        html_content += f'<div class="cal-header">{day_name}</div>'
         
-        display_cols = [c for c in ["check_in", "check_out", "nights", "gross_price", "net_price"] if c in df_b.columns]
-        df_table = df_b[display_cols].copy()
-        
-        # Rinomina le intestazioni
-        df_table = df_table.rename(columns={
-            "check_in": "Check-in",
-            "check_out": "Check-out",
-            "nights": "Notti",
-            "gross_price": "Prezzo Lordo",
-            "net_price": "Prezzo Netto"
-        })
-        
-        # Formatta i prezzi con il simbolo € e 2 decimali
-        if "Prezzo Lordo" in df_table.columns:
-            df_table["Prezzo Lordo"] = df_table["Prezzo Lordo"].apply(lambda x: f"€ {float(x):,.2f}")
-        if "Prezzo Netto" in df_table.columns:
-            df_table["Prezzo Netto"] = df_table["Prezzo Netto"].apply(lambda x: f"€ {float(x):,.2f}")
-            
-        st.dataframe(df_table, use_container_width=True)
-    else:
-        st.info("Nessuna prenotazione disponibile per generare il calendario.")
+    # Celle dei giorni
+    for week in cal:
+        for day in week:
+            if day == 0:
+                html_content += '<div class="cal-day empty"></div>'
+            else:
+                current_date = date(sel_year, sel_month, day)
+                is_occupied = current_date in occupied_dates
+                is_past = current_date < date.today()
+                
+                # Simulazione prezzo basata sul giorno (feriale vs weekend)
+                base_price = 70
+                if current_date.weekday() in [4, 5]: # Ven e Sab
+                    base_price += 15
+                
+                # Classi CSS dinamiche
+                css_class = "cal-day occupied" if (is_occupied or is_past) else "cal-day"
+                
+                # Badge di stato
+                if is_occupied:
+                    badge = '<span class="day-badge">Occupato</span>'
+                else:
+                    badge = '<span class="day-badge">Min. 1 notte</span>'
+                
+                html_content += f"""
+                <div class="{css_class}">
+                    <div class="day-num">{day}</div>
+                    <div class="day-price">{base_price} €</div>
+                    <div>{badge}</div>
+                </div>
+                """
+    
+    html_content += "</div>"
+    
+    # Renderizza il calendario nell'app
+    st.markdown(html_content, unsafe_allow_html=True)

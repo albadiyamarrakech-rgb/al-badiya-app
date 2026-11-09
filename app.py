@@ -320,7 +320,6 @@ elif menu == "Calendario":
             try:
                 ci = pd.to_datetime(row["check_in"]).date()
                 co = pd.to_datetime(row["check_out"]).date()
-                # Aggiunge all'elenco tutte le notti tra check-in e check-out
                 delta = co - ci
                 for i in range(delta.days):
                     occupied_dates.add(ci + timedelta(days=i))
@@ -329,61 +328,53 @@ elif menu == "Calendario":
 
     # 2. Genera la struttura del mese
     cal = calendar.monthcalendar(sel_year, sel_month)
-    giorni_settimana = ["lun", "mar", "mer", "gio", "ven", "sab", "dom"]
+    giorni_settimana = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"]
     
-    # 3. Costruisce la griglia in HTML/CSS in stile Airbnb/Booking
-    html_content = """
-    <style>
-        .cal-container { display: grid; grid-template-columns: repeat(7, 1fr); gap: 12px; font-family: sans-serif; margin-top: 20px; }
-        .cal-header { text-align: center; font-weight: normal; font-size: 0.9em; color: #888; padding-bottom: 5px; }
-        .cal-day { border: 1px solid #e0e0e0; border-radius: 12px; padding: 12px; min-height: 110px; display: flex; flex-direction: column; justify-content: space-between; background-color: transparent; }
-        .cal-day.empty { border: none; background: transparent; }
-        .cal-day.occupied { opacity: 0.5; background-color: rgba(200, 200, 200, 0.1); }
-        .cal-day.occupied .day-num { text-decoration: line-through; color: #888; }
-        .day-num { font-size: 1.2em; font-weight: bold; margin-bottom: 8px; }
-        .day-price { font-size: 0.95em; margin-bottom: 5px; }
-        .day-badge { font-size: 0.75em; background-color: rgba(150, 150, 150, 0.2); padding: 4px 6px; border-radius: 4px; display: inline-block; }
-    </style>
-    <div class="cal-container">
-    """
+    # 3. Costruzione stringa HTML (Senza indentazioni per evitare il blocco codice)
+    html_content = ""
+    html_content += "<style>"
+    html_content += ".cal-container { display: grid; grid-template-columns: repeat(7, 1fr); gap: 10px; font-family: sans-serif; margin-top: 20px; }"
+    html_content += ".cal-header { text-align: center; font-size: 0.9em; color: #a3a8b8; margin-bottom: 5px; }"
+    html_content += ".cal-day { border: 1px solid #333; border-radius: 8px; padding: 10px; min-height: 100px; display: flex; flex-direction: column; justify-content: space-between; background-color: #262730; color: #fff; }"
+    html_content += ".cal-day.empty { border: none; background: transparent; }"
+    html_content += ".cal-day.occupied { opacity: 0.4; background-color: #1a1a24; border-color: #222; }"
+    html_content += ".cal-day.occupied .day-num { text-decoration: line-through; color: #888; }"
+    html_content += ".day-num { font-size: 1.2em; font-weight: bold; margin-bottom: 5px; }"
+    html_content += ".day-price { font-size: 0.95em; color: #ddd; }"
+    html_content += ".day-badge { font-size: 0.75em; background-color: #444; padding: 3px 6px; border-radius: 4px; margin-top: 5px; display: inline-block; color: #bbb; }"
+    html_content += "</style>"
+    
+    html_content += "<div class='cal-container'>"
     
     # Intestazioni dei giorni
     for day_name in giorni_settimana:
-        html_content += f'<div class="cal-header">{day_name}</div>'
+        html_content += f"<div class='cal-header'>{day_name}</div>"
         
     # Celle dei giorni
     for week in cal:
         for day in week:
             if day == 0:
-                html_content += '<div class="cal-day empty"></div>'
+                html_content += "<div class='cal-day empty'></div>"
             else:
                 current_date = date(sel_year, sel_month, day)
                 is_occupied = current_date in occupied_dates
                 is_past = current_date < date.today()
                 
-                # Simulazione prezzo basata sul giorno (feriale vs weekend)
                 base_price = 70
-                if current_date.weekday() in [4, 5]: # Ven e Sab
+                if current_date.weekday() in [4, 5]: # Ven e Sab costano di più
                     base_price += 15
                 
-                # Classi CSS dinamiche
                 css_class = "cal-day occupied" if (is_occupied or is_past) else "cal-day"
+                badge = "Occupato" if is_occupied else "Min. 1 notte"
                 
-                # Badge di stato
-                if is_occupied:
-                    badge = '<span class="day-badge">Occupato</span>'
-                else:
-                    badge = '<span class="day-badge">Min. 1 notte</span>'
-                
-                html_content += f"""
-                <div class="{css_class}">
-                    <div class="day-num">{day}</div>
-                    <div class="day-price">{base_price} €</div>
-                    <div>{badge}</div>
-                </div>
-                """
+                # Inserimento campi senza rientri per la corretta lettura in Streamlit
+                html_content += f"<div class='{css_class}'>"
+                html_content += f"<div class='day-num'>{day}</div>"
+                html_content += f"<div class='day-price'>{base_price} €</div>"
+                html_content += f"<div class='day-badge'>{badge}</div>"
+                html_content += "</div>"
     
     html_content += "</div>"
     
-    # Renderizza il calendario nell'app
+    # Renderizza HTML puro senza farlo interpretare come testo
     st.markdown(html_content, unsafe_allow_html=True)

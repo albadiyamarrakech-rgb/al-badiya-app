@@ -304,8 +304,28 @@ elif menu == "Calendario":
     df_b = load_bookings()
 
     if not df_b.empty:
-        st.write("Elenco prenotazioni:")
+        st.write("Elenco prenotazioni confermate:")
+        
+        # Seleziona solo le colonne utili (se presenti)
         display_cols = [c for c in ["check_in", "check_out", "nights", "gross_price", "net_price"] if c in df_b.columns]
-        st.dataframe(df_b[display_cols], use_container_width=True)
+        df_cal = df_b[display_cols].copy()
+        
+        # Rinomina le intestazioni per renderle professionali
+        rename_dict = {
+            "check_in": "Check-in",
+            "check_out": "Check-out",
+            "nights": "Notti",
+            "gross_price": "Prezzo Lordo",
+            "net_price": "Prezzo Netto"
+        }
+        df_cal = df_cal.rename(columns=rename_dict)
+        
+        # Formatta i valori in Euro con 2 decimali
+        if "Prezzo Lordo" in df_cal.columns:
+            df_cal["Prezzo Lordo"] = df_cal["Prezzo Lordo"].apply(lambda x: f"€ {float(x):,.2f}")
+        if "Prezzo Netto" in df_cal.columns:
+            df_cal["Prezzo Netto"] = df_cal["Prezzo Netto"].apply(lambda x: f"€ {float(x):,.2f}")
+            
+        st.dataframe(df_cal, use_container_width=True)
     else:
         st.info("Nessuna prenotazione disponibile.")

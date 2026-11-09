@@ -297,35 +297,61 @@ elif menu == "Forecast & Pricing Dinamico":
     st.table(pd.DataFrame(forecast_data))
 
 # ----------------------------------------------------
-# SEZIONE 5: CALENDARIO
+# SEZIONE 5: CALENDARIO VISIVO OCCUPAZIONE
 # ----------------------------------------------------
 elif menu == "Calendario":
+    import altair as alt
+    
     st.title("📅 Calendario Occupazione")
     df_b = load_bookings()
 
-    if not df_b.empty:
-        st.write("Elenco prenotazioni confermate:")
+    if not df_b.empty and "check_in" in df_b.columns and "check_out" in df_b.columns:
+        st.write("Colpo d'occhio sulle date occupate:")
         
-        # Seleziona solo le colonne utili (se presenti)
+        # Prepariamo i dati per il grafico visivo
+        df_cal = df_b.copy()
+        df_cal["check_in"] = pd.to_datetime(df_cal["check_in"])
+        df_cal["check_out"] = pd.to_datetime(df_cal["check_out"])
+        df_cal["Struttura"] = "Al Badiya" # Asse Y fisso per la struttura
+        
+        # Creiamo la Timeline Visiva (Gantt Chart)
+        chart = alt.Chart(df_cal).mark_bar(cornerRadius=4, height=40).encode(
+            x=alt.X('check_in:T', title='Linea del Tempo'),
+            x2='check_out:T',
+            y=alt.Y('Struttura:N', title='', axis=alt.Axis(labels=False, ticks=False)),
+            color=alt.Color('gross_price:Q', scale=alt.Scale(scheme='blues'), title='Prezzo (€)'),
+            tooltip=[
+                alt.Tooltip('check_in:T', title='Check-in', format='%d/%m/%Y'),
+                alt.Tooltip('check_out:T', title='Check-out', format='%d/%m/%Y'),
+                alt.Tooltip('nights:Q', title='Notti'),
+                alt.Tooltip('gross_price:Q', title='Prezzo Lordo (€)')
+            ]
+        ).properties(height=150)
+        
+        st.altair_chart(chart, use_container_width=True)
+
+        # Tabella di riepilogo sottostante formattata in Euro
+        st.markdown("---")
+        st.write("Dettaglio prenotazioni confermate:")
+        
         display_cols = [c for c in ["check_in", "check_out", "nights", "gross_price", "net_price"] if c in df_b.columns]
-        df_cal = df_b[display_cols].copy()
+        df_table = df_b[display_cols].copy()
         
-        # Rinomina le intestazioni per renderle professionali
-        rename_dict = {
+        # Rinomina le intestazioni
+        df_table = df_table.rename(columns={
             "check_in": "Check-in",
             "check_out": "Check-out",
             "nights": "Notti",
             "gross_price": "Prezzo Lordo",
             "net_price": "Prezzo Netto"
-        }
-        df_cal = df_cal.rename(columns=rename_dict)
+        })
         
-        # Formatta i valori in Euro con 2 decimali
-        if "Prezzo Lordo" in df_cal.columns:
-            df_cal["Prezzo Lordo"] = df_cal["Prezzo Lordo"].apply(lambda x: f"€ {float(x):,.2f}")
-        if "Prezzo Netto" in df_cal.columns:
-            df_cal["Prezzo Netto"] = df_cal["Prezzo Netto"].apply(lambda x: f"€ {float(x):,.2f}")
+        # Formatta i prezzi con il simbolo € e 2 decimali
+        if "Prezzo Lordo" in df_table.columns:
+            df_table["Prezzo Lordo"] = df_table["Prezzo Lordo"].apply(lambda x: f"€ {float(x):,.2f}")
+        if "Prezzo Netto" in df_table.columns:
+            df_table["Prezzo Netto"] = df_table["Prezzo Netto"].apply(lambda x: f"€ {float(x):,.2f}")
             
-        st.dataframe(df_cal, use_container_width=True)
+        st.dataframe(df_table, use_container_width=True)
     else:
-        st.info("Nessuna prenotazione disponibile.")
+        st.info("Nessuna prenotazione disponibile per generare il calendario.")

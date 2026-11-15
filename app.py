@@ -171,37 +171,71 @@ if menu == "Dashboard & KPI":
 # ----------------------------------------------------
 elif menu == "Nuova Prenotazione":
     st.title("📝 Inserimento Nuova Prenotazione (€)")
-    with st.form("booking_form", clear_on_submit=True):
-        col1, col2 = st.columns(2)
-        client = col1.text_input("Nome Ospite")
-        channel = col2.text_input("Canale (es. Booking, Airbnb, Diretto)")
-        
-        col3, col4 = st.columns(2)
-        check_in = col3.date_input("Data Check-in", value=date.today())
-        check_out = col4.date_input("Data Check-out", value=date.today() + timedelta(days=1))
+    
+    # Usa le colonne senza st.form per permettere l'aggiornamento automatico e in tempo reale
+    col1, col2 = st.columns(2)
+    client = col1.text_input("Nome Ospite")
+    
+    # Menu a tendina per Canale (suggerimenti richiesti)
+    canali_disponibili = ["Ali", "Booking", "Airbnb", "Younes", "Ayoub"]
+    channel = col2.selectbox("Canale", canali_disponibili)
+    
+    col3, col4 = st.columns(2)
+    check_in = col3.date_input("Data Check-in", value=date.today())
+    check_out = col4.date_input("Data Check-out", value=date.today() + timedelta(days=1))
 
-        col5, col6 = st.columns(2)
-        nights = col5.number_input("Numero Notti", min_value=1, value=max((check_out - check_in).days, 1))
-        gross_price = col6.number_input("Prezzo Lordo (€)", min_value=0.0, step=5.0, value=70.0)
+    # Calcolo suggerito delle notti
+    calc_nights = max((check_out - check_in).days, 1)
+    
+    col5, col6 = st.columns(2)
+    nights = col5.number_input("Numero Notti", min_value=1, value=calc_nights)
+    gross_price = col6.number_input("Prezzo Lordo (€)", min_value=0.0, step=5.0, value=70.0)
 
-        col7, col8 = st.columns(2)
-        commission = col7.number_input("Commissioni (€)", min_value=0.0, step=1.0, value=10.0)
-        cleaning_fee = col8.number_input("Costi Pulizie (€)", min_value=0.0, step=1.0, value=10.0)
+    # Logica di calcolo automatico delle commissioni in base al canale
+    if channel in ["Ali", "Ayoub"]:
+        commission_auto = 10.0 * nights
+        fee_type = "Dealer"
+    elif channel == "Booking":
+        commission_auto = gross_price * 0.19
+        fee_type = "E-Platform"
+    elif channel == "Airbnb":
+        commission_auto = gross_price * 0.155
+        fee_type = "E-Platform"
+    elif channel == "Younes":
+        commission_auto = 0.0
+        fee_type = "None"
+    else:
+        commission_auto = 0.0
+        fee_type = "None"
 
-        net_price = max(0.0, gross_price - commission - cleaning_fee)
-        st.info(f"💡 Ricavo Netto Calcolato: **€ {net_price:.2f}**")
+    col7, col8 = st.columns(2)
+    # Campo commissione bloccato (disabled=True) che mostra il valore calcolato dal sistema
+    commission = col7.number_input("Commissioni (calcolate in automatico €)", value=float(commission_auto), disabled=True)
+    cleaning_fee = col8.number_input("Costi Pulizie (€)", min_value=0.0, step=1.0, value=10.0)
 
-        submitted = st.form_submit_button("💾 Salva Prenotazione")
+    net_price = max(0.0, gross_price - commission - cleaning_fee)
+    st.info(f"💡 Ricavo Netto Calcolato: **€ {net_price:.2f}**")
 
-        if submitted:
-            if check_out <= check_in:
-                st.error("La data di check-out deve essere successiva al check-in.")
-            elif not client or not channel:
-                st.error("Inserisci il Nome Ospite e il Canale.")
-            else:
+    # Bottone di invio standard di Streamlit
+    if st.button("💾 Salva Prenotazione"):
+        if check_out <= check_in:
+            st.error("La data di check-out deve essere successiva al check-in.")
+        elif not client:
+            st.error("Inserisci il Nome Ospite.")
+        else:
+            try:
+                # Calcola automaticamente il prossimo ID numerico per risolvere l'errore Supabase
+                df_temp = load_bookings()
+                if not df_temp.empty and "id" in df_temp.columns and pd.notnull(df_temp["id"].max()):
+                    next_id = int(df_temp["id"].max()) + 1
+                else:
+                    next_id = 1
+
                 new_data = {
+                    "id": next_id,
                     "client": client,
                     "channel": channel,
+                    "fee_type": fee_type,
                     "check_in": check_in.isoformat(),
                     "check_out": check_out.isoformat(),
                     "nights": int(nights),
@@ -212,12 +246,14 @@ elif menu == "Nuova Prenotazione":
                     "month": check_in.strftime("%Y-%m-01"),
                     "year": check_in.year
                 }
-                try:
-                    supabase.table("bookings").insert(new_data).execute()
-                    st.success("Prenotazione salvata con successo!")
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"Errore durante il salvataggio: {e}")
+                
+                supabase.table("bookings").insert(new_data).execute()
+                st.success("Prenotazione salvata con successo!")
+                
+                # Forza il ricaricamento dell'interfaccia per svuotare i campi
+                st.rerun()
+            except Exception as e:
+                st.error(f"Errore durante il salvataggio: {e}")
 
 # ----------------------------------------------------
 # SEZIONE 3: REGISTRO SPESE

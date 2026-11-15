@@ -95,14 +95,14 @@ def get_seasonality_factor(dt: date):
 # ----------------------------------------------------
 menu = st.sidebar.radio(
     "Navigazione",
-    ["Dashboard & KPI", "Nuova Prenotazione", "Registro Spese", "Forecast & Pricing Dinamico", "Calendario"]
+    ["Bookings", "Nuova Prenotazione", "Registro Spese", "Forecast & Pricing Dinamico", "Calendario"]
 )
 
 # ----------------------------------------------------
-# SEZIONE 1: DASHBOARD & KPI
+# SEZIONE 1: BOOKINGS
 # ----------------------------------------------------
-if menu == "Dashboard & KPI":
-    st.title("📊 Dashboard Finanziaria & KPI (€)")
+if menu == "Bookings":
+    st.title("📊 Bookings (€)")
     df_b = load_bookings()
     df_exp = load_bills()
 
@@ -131,7 +131,6 @@ if menu == "Dashboard & KPI":
     st.subheader("Tabella Prenotazioni Registrate")
 
     if not df_b.empty:
-        # Aggiunto "nationality" all'ordine logico
         ordine_ideale = [
             "id", "client", "nationality", "channel", 
             "check_in", "check_out", "nights", 
@@ -141,7 +140,6 @@ if menu == "Dashboard & KPI":
         display_cols = [c for c in ordine_ideale if c in df_b.columns]
         df_display = df_b[display_cols].copy()
         
-        # Aggiunta la traduzione "Nazionalità"
         rename_dict = {
             "id": "ID",
             "client": "Ospite",
@@ -259,13 +257,12 @@ elif menu == "Nuova Prenotazione":
                 supabase.table("bookings").insert(new_data).execute()
                 st.success("Prenotazione salvata con successo!")
                 
-                # Ordina lo svuotamento dei campi per il prossimo caricamento
                 st.session_state.reset_form = True
                 st.rerun()
             except Exception as e:
                 st.error(f"Errore durante il salvataggio: {e}")
 
-    # --- TABELLA ULTIMI INSERIMENTI ---
+    # --- TABELLA ULTIMI INSERIMENTI IN DATA ENTRY ---
     st.markdown("---")
     st.subheader("Ultimi Inserimenti")
     
@@ -278,7 +275,7 @@ elif menu == "Nuova Prenotazione":
         ]
         
         display_cols = [c for c in ordine_ideale if c in df_b.columns]
-        df_display = df_b[display_cols].copy()
+        df_display_entry = df_b[display_cols].copy()
         
         rename_dict = {
             "id": "ID",
@@ -293,19 +290,19 @@ elif menu == "Nuova Prenotazione":
             "cleaning_fee": "Pulizie (€)",
             "net_price": "Netto (€)"
         }
-        df_display = df_display.rename(columns=rename_dict)
+        df_display_entry = df_display_entry.rename(columns=rename_dict)
         
         for col in ["Lordo (€)", "Comm. (€)", "Pulizie (€)", "Netto (€)"]:
-            if col in df_display.columns:
-                df_display[col] = pd.to_numeric(df_display[col], errors='coerce').apply(lambda x: f"{x:.2f}" if pd.notnull(x) else "0.00")
+            if col in df_display_entry.columns:
+                df_display_entry[col] = pd.to_numeric(df_display_entry[col], errors='coerce').apply(lambda x: f"{x:.2f}" if pd.notnull(x) else "0.00")
         
-        if "ID" in df_display.columns:
-            df_display = df_display.sort_values(by="ID", ascending=False)
-        elif "Check-in" in df_display.columns:
-            df_display["Check-in"] = pd.to_datetime(df_display["Check-in"]).dt.date
-            df_display = df_display.sort_values(by="Check-in", ascending=False)
+        if "ID" in df_display_entry.columns:
+            df_display_entry = df_display_entry.sort_values(by="ID", ascending=False)
+        elif "Check-in" in df_display_entry.columns:
+            df_display_entry["Check-in"] = pd.to_datetime(df_display_entry["Check-in"]).dt.date
+            df_display_entry = df_display_entry.sort_values(by="Check-in", ascending=False)
             
-        st.dataframe(df_display.head(10), use_container_width=True, hide_index=True)
+        st.dataframe(df_display_entry.head(10), use_container_width=True, hide_index=True)
     else:
         st.info("Nessuna prenotazione presente.")
 

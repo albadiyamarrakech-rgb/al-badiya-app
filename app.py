@@ -43,8 +43,8 @@ st.sidebar.caption("Revenue Management & Gestione Struttura")
 # ----------------------------------------------------
 # 2. CONNESSIONE SUPABASE
 # ----------------------------------------------------
-SUPABASE_URL = st.secrets.get("SUPABASE_URL", os.environ.get("SUPABASE_URL", "https://tua-url.supabase.co"))
-SUPABASE_KEY = st.secrets.get("SUPABASE_KEY", os.environ.get("SUPABASE_KEY", "tua-publishable-key"))
+SUPABASE_URL = st.secrets.get("SUPABASE_URL", os.environ.get("SUPABASE_URL", "https://rkicgvfzoptideeaylog.supabase.co"))
+SUPABASE_KEY = st.secrets.get("SUPABASE_KEY", os.environ.get("SUPABASE_KEY", "sb_publishable_pWP_qrEggQdTlbqeNiX1Tg_KsrHkyeg"))
 
 @st.cache_resource
 def get_supabase_client() -> Client:

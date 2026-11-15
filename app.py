@@ -175,23 +175,34 @@ if menu == "Dashboard & KPI":
 elif menu == "Nuova Prenotazione":
     st.title("📝 Inserimento Nuova Prenotazione (€)")
     
+    # Gestione dello svuotamento campi dopo il salvataggio
+    if "reset_form" not in st.session_state:
+        st.session_state.reset_form = False
+
+    if st.session_state.reset_form:
+        for key in ["in_client", "in_nat", "in_nights", "in_gross", "in_clean"]:
+            if key in st.session_state:
+                del st.session_state[key]
+        st.session_state.reset_form = False
+
     col1, col2, col3 = st.columns(3)
-    client = col1.text_input("Nome Ospite")
-    nationality = col2.text_input("Nazionalità")
+    client = col1.text_input("Nome Ospite", key="in_client")
+    nationality = col2.text_input("Nazionalità", key="in_nat")
     
     canali_disponibili = ["Ali", "Booking", "Airbnb", "Younes", "Ayoub"]
-    channel = col3.selectbox("Canale", canali_disponibili)
+    channel = col3.selectbox("Canale", canali_disponibili, key="in_chan")
     
     col4, col5 = st.columns(2)
-    check_in = col4.date_input("Data Check-in", value=date.today())
-    check_out = col5.date_input("Data Check-out", value=date.today() + timedelta(days=1))
+    check_in = col4.date_input("Data Check-in", value=date.today(), key="in_ci")
+    check_out = col5.date_input("Data Check-out", value=date.today() + timedelta(days=1), key="in_co")
 
     calc_nights = max((check_out - check_in).days, 1)
     
     col6, col7 = st.columns(2)
-    nights = col6.number_input("Numero Notti", min_value=1, value=calc_nights)
-    gross_price = col7.number_input("Prezzo Lordo (€)", min_value=0.0, step=5.0, value=70.0)
+    nights = col6.number_input("Numero Notti", min_value=1, value=calc_nights, key="in_nights")
+    gross_price = col7.number_input("Prezzo Lordo (€)", min_value=0.0, step=5.0, value=70.0, key="in_gross")
 
+    # Calcolo commissioni in tempo reale
     if channel in ["Ali", "Ayoub"]:
         commission_auto = 10.0 * nights
         fee_type = "Dealer"
@@ -210,7 +221,7 @@ elif menu == "Nuova Prenotazione":
 
     col8, col9 = st.columns(2)
     commission = col8.number_input("Commissioni (calcolate in automatico €)", value=float(commission_auto), disabled=True)
-    cleaning_fee = col9.number_input("Costi Pulizie (€)", min_value=0.0, step=1.0, value=10.0)
+    cleaning_fee = col9.number_input("Costi Pulizie (€)", min_value=0.0, step=1.0, value=10.0, key="in_clean")
 
     net_price = max(0.0, gross_price - commission - cleaning_fee)
     st.info(f"💡 Ricavo Netto Calcolato: **€ {net_price:.2f}**")
@@ -247,11 +258,14 @@ elif menu == "Nuova Prenotazione":
                 
                 supabase.table("bookings").insert(new_data).execute()
                 st.success("Prenotazione salvata con successo!")
+                
+                # Ordina lo svuotamento dei campi per il prossimo caricamento
+                st.session_state.reset_form = True
                 st.rerun()
             except Exception as e:
                 st.error(f"Errore durante il salvataggio: {e}")
 
-    # --- AGGIUNTA TABELLA ULTIMI INSERIMENTI ---
+    # --- TABELLA ULTIMI INSERIMENTI ---
     st.markdown("---")
     st.subheader("Ultimi Inserimenti")
     
@@ -285,15 +299,12 @@ elif menu == "Nuova Prenotazione":
             if col in df_display.columns:
                 df_display[col] = pd.to_numeric(df_display[col], errors='coerce').apply(lambda x: f"{x:.2f}" if pd.notnull(x) else "0.00")
         
-        if "Check-in" in df_display.columns:
+        if "ID" in df_display.columns:
+            df_display = df_display.sort_values(by="ID", ascending=False)
+        elif "Check-in" in df_display.columns:
             df_display["Check-in"] = pd.to_datetime(df_display["Check-in"]).dt.date
-            # Ordiniamo per data di inserimento decrescente in modo da mostrare per prime le nuove (se c'è l'ID, è perfetto per ordinare dall'ultimo)
-            if "ID" in df_display.columns:
-                df_display = df_display.sort_values(by="ID", ascending=False)
-            else:
-                df_display = df_display.sort_values(by="Check-in", ascending=False)
+            df_display = df_display.sort_values(by="Check-in", ascending=False)
             
-        # Mostriamo solo le ultime 10 righe per non appesantire il form di data entry
         st.dataframe(df_display.head(10), use_container_width=True, hide_index=True)
     else:
         st.info("Nessuna prenotazione presente.")

@@ -131,8 +131,9 @@ if menu == "Dashboard & KPI":
     st.subheader("Tabella Prenotazioni Registrate")
 
     if not df_b.empty:
+        # Aggiunto "nationality" all'ordine logico
         ordine_ideale = [
-            "id", "client", "channel", 
+            "id", "client", "nationality", "channel", 
             "check_in", "check_out", "nights", 
             "gross_price", "commission", "cleaning_fee", "net_price"
         ]
@@ -140,9 +141,11 @@ if menu == "Dashboard & KPI":
         display_cols = [c for c in ordine_ideale if c in df_b.columns]
         df_display = df_b[display_cols].copy()
         
+        # Aggiunta la traduzione "Nazionalità"
         rename_dict = {
             "id": "ID",
             "client": "Ospite",
+            "nationality": "Nazionalità",
             "channel": "Canale",
             "check_in": "Check-in",
             "check_out": "Check-out",
@@ -167,12 +170,11 @@ if menu == "Dashboard & KPI":
         st.info("Nessuna prenotazione presente nel database.")
 
 # ----------------------------------------------------
-# SEZIONE 2: NUOVA PRENOTAZIONE
+# SEZIONE 2: NUOVA PRENOTAZIONE (DATA ENTRY)
 # ----------------------------------------------------
 elif menu == "Nuova Prenotazione":
     st.title("📝 Inserimento Nuova Prenotazione (€)")
     
-    # Tre colonne per la prima riga
     col1, col2, col3 = st.columns(3)
     client = col1.text_input("Nome Ospite")
     nationality = col2.text_input("Nazionalità")
@@ -190,7 +192,6 @@ elif menu == "Nuova Prenotazione":
     nights = col6.number_input("Numero Notti", min_value=1, value=calc_nights)
     gross_price = col7.number_input("Prezzo Lordo (€)", min_value=0.0, step=5.0, value=70.0)
 
-    # Logica di calcolo automatico
     if channel in ["Ali", "Ayoub"]:
         commission_auto = 10.0 * nights
         fee_type = "Dealer"
@@ -230,7 +231,7 @@ elif menu == "Nuova Prenotazione":
                 new_data = {
                     "id": next_id,
                     "client": client,
-                    "nationality": nationality,  # Campo aggiunto!
+                    "nationality": nationality,
                     "channel": channel,
                     "fee_type": fee_type,
                     "check_in": check_in.isoformat(),
@@ -249,6 +250,53 @@ elif menu == "Nuova Prenotazione":
                 st.rerun()
             except Exception as e:
                 st.error(f"Errore durante il salvataggio: {e}")
+
+    # --- AGGIUNTA TABELLA ULTIMI INSERIMENTI ---
+    st.markdown("---")
+    st.subheader("Ultimi Inserimenti")
+    
+    df_b = load_bookings()
+    if not df_b.empty:
+        ordine_ideale = [
+            "id", "client", "nationality", "channel", 
+            "check_in", "check_out", "nights", 
+            "gross_price", "commission", "cleaning_fee", "net_price"
+        ]
+        
+        display_cols = [c for c in ordine_ideale if c in df_b.columns]
+        df_display = df_b[display_cols].copy()
+        
+        rename_dict = {
+            "id": "ID",
+            "client": "Ospite",
+            "nationality": "Nazionalità",
+            "channel": "Canale",
+            "check_in": "Check-in",
+            "check_out": "Check-out",
+            "nights": "Notti",
+            "gross_price": "Lordo (€)",
+            "commission": "Comm. (€)",
+            "cleaning_fee": "Pulizie (€)",
+            "net_price": "Netto (€)"
+        }
+        df_display = df_display.rename(columns=rename_dict)
+        
+        for col in ["Lordo (€)", "Comm. (€)", "Pulizie (€)", "Netto (€)"]:
+            if col in df_display.columns:
+                df_display[col] = pd.to_numeric(df_display[col], errors='coerce').apply(lambda x: f"{x:.2f}" if pd.notnull(x) else "0.00")
+        
+        if "Check-in" in df_display.columns:
+            df_display["Check-in"] = pd.to_datetime(df_display["Check-in"]).dt.date
+            # Ordiniamo per data di inserimento decrescente in modo da mostrare per prime le nuove (se c'è l'ID, è perfetto per ordinare dall'ultimo)
+            if "ID" in df_display.columns:
+                df_display = df_display.sort_values(by="ID", ascending=False)
+            else:
+                df_display = df_display.sort_values(by="Check-in", ascending=False)
+            
+        # Mostriamo solo le ultime 10 righe per non appesantire il form di data entry
+        st.dataframe(df_display.head(10), use_container_width=True, hide_index=True)
+    else:
+        st.info("Nessuna prenotazione presente.")
 
 # ----------------------------------------------------
 # SEZIONE 3: REGISTRO SPESE

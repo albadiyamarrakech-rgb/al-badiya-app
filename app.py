@@ -172,26 +172,25 @@ if menu == "Dashboard & KPI":
 elif menu == "Nuova Prenotazione":
     st.title("📝 Inserimento Nuova Prenotazione (€)")
     
-    # Usa le colonne senza st.form per permettere l'aggiornamento automatico e in tempo reale
-    col1, col2 = st.columns(2)
+    # Tre colonne per la prima riga
+    col1, col2, col3 = st.columns(3)
     client = col1.text_input("Nome Ospite")
+    nationality = col2.text_input("Nazionalità")
     
-    # Menu a tendina per Canale (suggerimenti richiesti)
     canali_disponibili = ["Ali", "Booking", "Airbnb", "Younes", "Ayoub"]
-    channel = col2.selectbox("Canale", canali_disponibili)
+    channel = col3.selectbox("Canale", canali_disponibili)
     
-    col3, col4 = st.columns(2)
-    check_in = col3.date_input("Data Check-in", value=date.today())
-    check_out = col4.date_input("Data Check-out", value=date.today() + timedelta(days=1))
+    col4, col5 = st.columns(2)
+    check_in = col4.date_input("Data Check-in", value=date.today())
+    check_out = col5.date_input("Data Check-out", value=date.today() + timedelta(days=1))
 
-    # Calcolo suggerito delle notti
     calc_nights = max((check_out - check_in).days, 1)
     
-    col5, col6 = st.columns(2)
-    nights = col5.number_input("Numero Notti", min_value=1, value=calc_nights)
-    gross_price = col6.number_input("Prezzo Lordo (€)", min_value=0.0, step=5.0, value=70.0)
+    col6, col7 = st.columns(2)
+    nights = col6.number_input("Numero Notti", min_value=1, value=calc_nights)
+    gross_price = col7.number_input("Prezzo Lordo (€)", min_value=0.0, step=5.0, value=70.0)
 
-    # Logica di calcolo automatico delle commissioni in base al canale
+    # Logica di calcolo automatico
     if channel in ["Ali", "Ayoub"]:
         commission_auto = 10.0 * nights
         fee_type = "Dealer"
@@ -208,15 +207,13 @@ elif menu == "Nuova Prenotazione":
         commission_auto = 0.0
         fee_type = "None"
 
-    col7, col8 = st.columns(2)
-    # Campo commissione bloccato (disabled=True) che mostra il valore calcolato dal sistema
-    commission = col7.number_input("Commissioni (calcolate in automatico €)", value=float(commission_auto), disabled=True)
-    cleaning_fee = col8.number_input("Costi Pulizie (€)", min_value=0.0, step=1.0, value=10.0)
+    col8, col9 = st.columns(2)
+    commission = col8.number_input("Commissioni (calcolate in automatico €)", value=float(commission_auto), disabled=True)
+    cleaning_fee = col9.number_input("Costi Pulizie (€)", min_value=0.0, step=1.0, value=10.0)
 
     net_price = max(0.0, gross_price - commission - cleaning_fee)
     st.info(f"💡 Ricavo Netto Calcolato: **€ {net_price:.2f}**")
 
-    # Bottone di invio standard di Streamlit
     if st.button("💾 Salva Prenotazione"):
         if check_out <= check_in:
             st.error("La data di check-out deve essere successiva al check-in.")
@@ -224,7 +221,6 @@ elif menu == "Nuova Prenotazione":
             st.error("Inserisci il Nome Ospite.")
         else:
             try:
-                # Calcola automaticamente il prossimo ID numerico per risolvere l'errore Supabase
                 df_temp = load_bookings()
                 if not df_temp.empty and "id" in df_temp.columns and pd.notnull(df_temp["id"].max()):
                     next_id = int(df_temp["id"].max()) + 1
@@ -234,6 +230,7 @@ elif menu == "Nuova Prenotazione":
                 new_data = {
                     "id": next_id,
                     "client": client,
+                    "nationality": nationality,  # Campo aggiunto!
                     "channel": channel,
                     "fee_type": fee_type,
                     "check_in": check_in.isoformat(),
@@ -249,8 +246,6 @@ elif menu == "Nuova Prenotazione":
                 
                 supabase.table("bookings").insert(new_data).execute()
                 st.success("Prenotazione salvata con successo!")
-                
-                # Forza il ricaricamento dell'interfaccia per svuotare i campi
                 st.rerun()
             except Exception as e:
                 st.error(f"Errore durante il salvataggio: {e}")

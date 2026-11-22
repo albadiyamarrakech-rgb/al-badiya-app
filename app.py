@@ -76,7 +76,7 @@ if not checkin_param:
         pass
 
 if checkin_param is not None and checkin_param != "":
-    # Nasconde la sidebar gestionale per la privacy dei tuoi dati
+    # Nasconde la sidebar gestionale per la privacy dei dati
     st.markdown(
         """
         <style>
@@ -91,227 +91,171 @@ if checkin_param is not None and checkin_param != "":
         col_l, col_c, col_r = st.columns([2, 1, 2])
         col_c.image("logo.png", width="stretch")
 
-    st.title("🛎️ Check-in Online — Al Badiya")
-
-    # 1. Cerca se l'ID corrisponde a una prenotazione già esistente nel DB
-    booking_info = None
-    booking_id_int = int(checkin_param) if checkin_param.isdigit() else None
-
-    if supabase and booking_id_int is not None:
-        try:
-            res = supabase.table("bookings").select("*").eq("id", booking_id_int).execute()
-            if res.data:
-                booking_info = res.data[0]
-        except Exception:
-            booking_info = None
-
-    # --- STEP 1: RIEPILOGO SOGGIORNO & REGOLE ---
-    st.subheader("1. Riepilogo del Soggiorno e Regole della Casa")
-
-    if booking_info:
-        c1, c2, c3, c4 = st.columns(4)
-        c1.metric("Prenotazione #", booking_info.get("id", "-"))
-        c2.metric("Check-in", str(booking_info.get("check_in", "-"))[:10])
-        c3.metric("Check-out", str(booking_info.get("check_out", "-"))[:10])
-        c4.metric("Notti", booking_info.get("nights", "-"))
-        default_ci = pd.to_datetime(booking_info.get("check_in")).date()
-        default_co = pd.to_datetime(booking_info.get("check_out")).date()
-    else:
-        st.info("Compila le date del tuo soggiorno e i dati anagrafici richiesti per completare la registrazione.")
-        default_ci = date.today()
-        default_co = date.today() + timedelta(days=1)
-
-    with st.expander("📜 Leggi le Regole della Casa e Condizioni di Soggiorno", expanded=False):
-        st.markdown("""
-        - **Check-in / Check-out:** Rispettare gli orari concordati con l'host.
-        - **Silenzio:** Rispettare la quiete notturna dalle 22:00 alle 08:00.
-        - **Ospiti:** L'accesso è consentito solo alle persone regolarmente registrate.
-        - **Fumo:** Vietato fumare all'interno della struttura.
-        - **Verifica identità:** Ai sensi della normativa vigente, l'invio online velocizza la registrazione ma resta obbligatoria la verifica dell'identità *de visu* (di persona o in videochiamata in tempo reale) prima della consegna delle chiavi/codici.
-        """)
-
-    st.markdown("---")
-
-    st.subheader("2. Dati del Soggiorno e degli Ospiti")
-    num_companions = st.number_input(
-        "Quanti altri ospiti viaggiano con te? (escluso l'ospite principale)",
-        min_value=0, max_value=10, value=0, step=1
-    )
-
-    with st.form("online_checkin_form"):
-        # Se è una nuova prenotazione senza ID nel DB, chiede le date direttamente al cliente
-        if not booking_info:
-            st.markdown("#### 📅 Date del Soggiorno")
-            dc1, dc2 = st.columns(2)
-            guest_ci = dc1.date_input("Data Check-in *", value=default_ci)
-            guest_co = dc2.date_input("Data Check-out *", value=default_co)
-            st.markdown("---")
-        else:
-            guest_ci = default_ci
-            guest_co = default_co
-
-        # --- OSPITE PRINCIPALE ---
-        st.markdown("#### 👤 Ospite Principale (Capofamiglia / Capogruppo)")
-        col1, col2, col3 = st.columns([2, 2, 1])
-        first_name = col1.text_input("Nome *")
-        last_name = col2.text_input("Cognome *")
-        gender = col3.selectbox("Sesso *", ["M", "F"])
-
-        col4, col5, col6 = st.columns(3)
-        birth_date = col4.date_input(
-            "Data di nascita *",
-            value=date(1990, 1, 1),
-            min_value=date(1920, 1, 1),
-            max_value=date.today()
-        )
-        birth_place = col5.text_input("Luogo di nascita (Comune o Stato estero) *")
-        citizenship = col6.text_input("Cittadinanza *")
-
-        residence = st.text_input("Indirizzo di residenza completo (Via, Città, Paese) *")
-
-        col7, col8, col9 = st.columns(3)
-        doc_type = col7.selectbox(
-            "Tipo di documento *",
-            ["Carta d'Identità", "Passaporto", "Patente di Guida"]
-        )
-        doc_number = col8.text_input("Numero del documento *")
-        doc_issue_place = col9.text_input("Luogo di rilascio (Comune o Stato) *")
-
-        col10, col11 = st.columns(2)
-        email = col10.text_input("Email per comunicazioni *")
-        phone = col11.text_input("Numero di telefono / WhatsApp *")
-
-        # --- ACCOMPAGNATORI ---
-        companions_data = []
-        if num_companions > 0:
-            st.markdown("---")
-            st.markdown("#### 👥 Accompagnatori (solo generalità anagrafiche)")
-            for i in range(int(num_companions)):
-                st.markdown(f"**Ospite {i + 2}**")
-                ac1, ac2, ac3 = st.columns([2, 2, 1])
-                c_first = ac1.text_input("Nome *", key=f"c_fn_{i}")
-                c_last = ac2.text_input("Cognome *", key=f"c_ln_{i}")
-                c_gen = ac3.selectbox("Sesso *", ["M", "F"], key=f"c_gen_{i}")
-
-                ac4, ac5, ac6 = st.columns(3)
-                c_bdate = ac4.date_input(
-                    "Data di nascita *",
-                    value=date(1995, 1, 1),
-                    min_value=date(1920, 1, 1),
-                    max_value=date.today(),
-                    key=f"c_bd_{i}"
-                )
-                c_bplace = ac5.text_input("Luogo di nascita *", key=f"c_bp_{i}")
-                c_cit = ac6.text_input("Cittadinanza *", key=f"c_cit_{i}")
-
-                companions_data.append({
-                    "first_name": c_first,
-                    "last_name": c_last,
-                    "gender": c_gen,
-                    "birth_date": c_bdate.isoformat(),
-                    "birth_place": c_bplace,
-                    "citizenship": c_cit
-                })
-
-        # --- STEP 3: DOCUMENTO, PRIVACY E FIRMA ---
-        st.markdown("---")
-        st.subheader("3. Caricamento Documento, Privacy e Firma")
-
-        uploaded_docs = st.file_uploader(
-            "Allega foto del documento d'identità dell'ospite principale (Fronte/Retro - JPG, PNG, PDF) *",
-            type=["jpg", "jpeg", "png", "pdf"],
-            accept_multiple_files=True
-        )
-
-        privacy_ok = st.checkbox(
-            "Dichiaro di aver letto l'informativa sulla privacy (GDPR) e autorizzo il trattamento dei dati personali ai fini della registrazione degli ospiti (Alloggiati Web / normativa vigente). *"
-        )
-        rules_ok = st.checkbox(
-            "Accetto le Regole della Casa e le condizioni di locazione breve. *"
-        )
-        signature = st.text_input(
-            "Firma digitale (scrivi Nome e Cognome per confermare) *"
-        )
-
-        submitted = st.form_submit_button("✅ Completa Check-in Online", width="stretch")
-
-        if submitted:
-            missing_main = [
-                label for label, val in [
-                    ("Nome", first_name), ("Cognome", last_name),
-                    ("Luogo di nascita", birth_place), ("Cittadinanza", citizenship),
-                    ("Residenza", residence), ("Numero documento", doc_number),
-                    ("Luogo di rilascio", doc_issue_place), ("Email", email),
-                    ("Telefono", phone), ("Firma digitale", signature)
-                ] if not val.strip()
-            ]
-
-            missing_comp = any(
-                not (c["first_name"].strip() and c["last_name"].strip() and c["birth_place"].strip() and c["citizenship"].strip())
-                for c in companions_data
-            )
-
-            if guest_co <= guest_ci:
-                st.error("La data di Check-out deve essere successiva al Check-in.")
-            elif missing_main:
-                st.error(f"Compila tutti i campi obbligatori dell'ospite principale: {', '.join(missing_main)}.")
-            elif missing_comp:
-                st.error("Compila tutte le generalità anagrafiche per ogni accompagnatore indicato.")
-            elif not uploaded_docs:
-                st.error("Allega almeno una foto o scansione del documento d'identità.")
-            elif not privacy_ok or not rules_ok:
-                st.error("Devi accettare sia l'informativa sulla privacy (GDPR) che le regole della casa.")
-            else:
-                try:
-                    saved_files = []
-                    folder_tag = f"booking_{booking_id_int}" if booking_info else f"new_{datetime.now().strftime('%Y%m%d')}"
-                    for f in uploaded_docs:
-                        safe_name = f"{folder_tag}/{datetime.now().strftime('%Y%m%d%H%M%S')}_{f.name}"
-                        try:
-                            supabase.storage.from_("documents").upload(
-                                path=safe_name,
-                                file=f.getvalue(),
-                                file_options={"content-type": f.type}
-                            )
-                            saved_files.append(safe_name)
-                        except Exception:
-                            saved_files.append(f.name)
-
-                    checkin_payload = {
-                        "booking_id": booking_id_int if booking_info else None,
-                        "check_in_date": guest_ci.isoformat(),
-                        "check_out_date": guest_co.isoformat(),
-                        "first_name": first_name.strip(),
-                        "last_name": last_name.strip(),
-                        "gender": gender,
-                        "birth_date": birth_date.isoformat(),
-                        "birth_place": birth_place.strip(),
-                        "citizenship": citizenship.strip(),
-                        "residence": residence.strip(),
-                        "doc_type": doc_type,
-                        "doc_number": doc_number.strip(),
-                        "doc_issue_place": doc_issue_place.strip(),
-                        "email": email.strip(),
-                        "phone": phone.strip(),
-                        "companions": companions_data,
-                        "document_files": saved_files,
-                        "privacy_accepted": True,
-                        "rules_accepted": True,
-                        "digital_signature": signature.strip()
-                    }
-
-                    supabase.table("guest_checkins").insert(checkin_payload).execute()
-
-                    st.success("🎉 Check-in online completato con successo!")
-                    st.info(
-                        "**Prossimo passaggio — Arrivo e Accesso:**\n\n"
-                        "Abbiamo ricevuto i tuoi dati. L'host ti contatterà a breve su WhatsApp/Email per "
-                        "la breve verifica dell'identità (di persona o in videochiamata) e per inviarti le istruzioni definitive di accesso all'alloggio."
-                    )
-                except Exception as e:
-                    st.error(f"Errore durante il salvataggio del check-in: {e}")
-
-    st.stop()
+    # --- DIZIONARIO TRADUZIONI (DEFAULT: ENGLISH) ---
+    TRANSLATIONS = {
+        "English": {
+            "title": "🛎️ Online Check-in — Al Badiya",
+            "lang_label": "🌐 Language",
+            "step1": "1. Stay Summary & House Rules",
+            "booking_id": "Booking #",
+            "checkin": "Check-in",
+            "checkout": "Check-out",
+            "nights": "Nights",
+            "new_info": "Please enter your stay dates and required guest details below to complete your registration.",
+            "rules_expander": "📜 Read House Rules & Stay Conditions",
+            "rules_text": """
+- **Check-in / Check-out:** Please respect the arrival and departure times agreed with the host.
+- **Quiet Hours:** Please respect quiet hours from 10:00 PM to 08:00 AM.
+- **Guests:** Access is strictly limited to registered guests only.
+- **Smoking:** Smoking is strictly prohibited inside the property.
+- **Identity Verification:** Under applicable regulations, online registration speeds up your arrival, but a brief in-person or live video identity check is required before handing over keys/access codes.
+            """,
+            "step2": "2. Stay & Guest Details",
+            "companions_q": "How many additional guests are traveling with you? (excluding main guest)",
+            "stay_dates": "📅 Stay Dates",
+            "ci_date": "Check-in Date *",
+            "co_date": "Check-out Date *",
+            "main_guest": "👤 Main Guest (Head of Family / Group Leader)",
+            "first_name": "First Name *",
+            "last_name": "Last Name *",
+            "gender": "Gender *",
+            "birth_date": "Date of Birth *",
+            "birth_place": "Place of Birth (City or Country) *",
+            "citizenship": "Citizenship / Nationality *",
+            "residence": "Full Home Address (Street, City, Country) *",
+            "doc_type": "Document Type *",
+            "doc_options": ["Passport", "National ID Card", "Driver's License"],
+            "doc_number": "Document Number *",
+            "doc_issue": "Place of Issue (City or Country) *",
+            "email": "Email Address *",
+            "phone": "Phone / WhatsApp Number *",
+            "companions_title": "👥 Accompanying Guests (personal details only)",
+            "guest_n": "Guest",
+            "step3": "3. Document Upload, Privacy & Signature",
+            "upload_label": "Upload a photo/scan of the main guest's ID document (Front/Back - JPG, PNG, PDF) *",
+            "privacy_cb": "I have read the Privacy Policy (GDPR) and consent to the processing of personal data for mandatory guest registration. *",
+            "rules_cb": "I accept the House Rules and short-term rental terms. *",
+            "signature": "Digital Signature (type your Full Name to confirm) *",
+            "submit_btn": "✅ Complete Online Check-in",
+            "err_dates": "Check-out date must be after Check-in date.",
+            "err_main": "Please fill in all required fields for the main guest: ",
+            "err_comp": "Please fill in all personal details for every accompanying guest.",
+            "err_doc": "Please upload at least one photo or scan of your ID document.",
+            "err_consent": "You must accept both the Privacy Policy and the House Rules.",
+            "success_msg": "🎉 Online check-in completed successfully!",
+            "next_steps": "**Next Step — Arrival & Access:**\n\nWe have received your details. The host will contact you shortly via WhatsApp/Email for the quick identity verification (in person or via video call) and to send your final check-in instructions.",
+            "err_save": "Error saving check-in: "
+        },
+        "Français": {
+            "title": "🛎️ Enregistrement en ligne — Al Badiya",
+            "lang_label": "🌐 Langue",
+            "step1": "1. Récapitulatif du séjour et Règlement intérieur",
+            "booking_id": "Réservation #",
+            "checkin": "Arrivée",
+            "checkout": "Départ",
+            "nights": "Nuits",
+            "new_info": "Veuillez renseigner vos dates de séjour et les informations des voyageurs ci-dessous pour finaliser votre enregistrement.",
+            "rules_expander": "📜 Lire le Règlement intérieur et les Conditions de séjour",
+            "rules_text": """
+- **Arrivée / Départ :** Veuillez respecter les horaires convenus avec l'hôte.
+- **Calme :** Merci de respecter le calme nocturne de 22h00 à 08h00.
+- **Voyageurs :** L'accès est strictement réservé aux personnes enregistrées.
+- **Tabac :** Il est strictement interdit de fumer à l'intérieur du logement.
+- **Vérification d'identité :** Conformément à la réglementation en vigueur, l'enregistrement en ligne accélère votre accueil mais une vérification d'identité (en personne ou par appel vidéo) reste obligatoire avant la remise des clés/codes.
+            """,
+            "step2": "2. Dates du séjour et Informations des voyageurs",
+            "companions_q": "Combien d'autres voyageurs vous accompagnent ? (hors voyageur principal)",
+            "stay_dates": "📅 Dates du séjour",
+            "ci_date": "Date d'arrivée *",
+            "co_date": "Date de départ *",
+            "main_guest": "👤 Voyageur principal (Chef de famille / Responsable du groupe)",
+            "first_name": "Prénom *",
+            "last_name": "Nom *",
+            "gender": "Sexe *",
+            "birth_date": "Date de naissance *",
+            "birth_place": "Lieu de naissance (Ville ou Pays) *",
+            "citizenship": "Nationalité *",
+            "residence": "Adresse complète de résidence (Rue, Ville, Pays) *",
+            "doc_type": "Type de document *",
+            "doc_options": ["Passeport", "Carte Nationale d'Identité", "Permis de conduire"],
+            "doc_number": "Numéro du document *",
+            "doc_issue": "Lieu de délivrance (Ville ou Pays) *",
+            "email": "Adresse e-mail *",
+            "phone": "Numéro de téléphone / WhatsApp *",
+            "companions_title": "👥 Accompagnants (état civil uniquement)",
+            "guest_n": "Voyageur",
+            "step3": "3. Téléchargement du document, Confidentialité et Signature",
+            "upload_label": "Joindre une photo/scan de la pièce d'identité du voyageur principal (Recto/Verso - JPG, PNG, PDF) *",
+            "privacy_cb": "J'ai lu la politique de confidentialité (RGPD) et j'autorise le traitement de mes données personnelles pour l'enregistrement obligatoire des voyageurs. *",
+            "rules_cb": "J'accepte le Règlement intérieur et les conditions de location. *",
+            "signature": "Signature numérique (saisissez votre Nom et Prénom pour confirmer) *",
+            "submit_btn": "✅ Finaliser l'enregistrement en ligne",
+            "err_dates": "La date de départ doit être postérieure à la date d'arrivée.",
+            "err_main": "Veuillez remplir tous les champs obligatoires du voyageur principal : ",
+            "err_comp": "Veuillez remplir toutes les informations d'état civil pour chaque accompagnant.",
+            "err_doc": "Veuillez joindre au moins une photo ou un scan de votre pièce d'identité.",
+            "err_consent": "Vous devez accepter la politique de confidentialité et le règlement intérieur.",
+            "success_msg": "🎉 Enregistrement en ligne terminé avec succès !",
+            "next_steps": "**Prochaine étape — Arrivée et Accès :**\n\nNous avons bien reçu vos informations. L'hôte vous contactera prochainement sur WhatsApp/E-mail pour la rapide vérification d'identité (en personne ou par appel vidéo) et pour vous envoyer les instructions d'accès.",
+            "err_save": "Erreur lors de l'enregistrement : "
+        },
+        "Español": {
+            "title": "🛎️ Check-in Online — Al Badiya",
+            "lang_label": "🌐 Idioma",
+            "step1": "1. Resumen de la estancia y Normas de la casa",
+            "booking_id": "Reserva #",
+            "checkin": "Entrada",
+            "checkout": "Salida",
+            "nights": "Noches",
+            "new_info": "Por favor, introduce las fechas de tu estancia y los datos requeridos de los huéspedes para completar el registro.",
+            "rules_expander": "📜 Leer Normas de la casa y Condiciones de estancia",
+            "rules_text": """
+- **Entrada / Salida:** Respeta los horarios acordados con el anfitrión.
+- **Horas de silencio:** Respeta el descanso nocturno de 22:00 a 08:00.
+- **Huéspedes:** El acceso está permitido únicamente a las personas registradas.
+- **Fumar:** Está estrictamente prohibido fumar dentro del alojamiento.
+- **Verificación de identidad:** Según la normativa vigente, el registro online agiliza tu llegada, pero es obligatoria una breve verificación de identidad (en persona o por videollamada) antes de entregar las llaves/códigos.
+            """,
+            "step2": "2. Fechas de estancia y Datos de los huéspedes",
+            "companions_q": "¿Cuántos huéspedes adicionales viajan contigo? (excluyendo al huésped principal)",
+            "stay_dates": "📅 Fechas de la estancia",
+            "ci_date": "Fecha de entrada *",
+            "co_date": "Fecha de salida *",
+            "main_guest": "👤 Huésped Principal (Cabeza de familia / Responsable del grupo)",
+            "first_name": "Nombre *",
+            "last_name": "Apellidos *",
+            "gender": "Sexo *",
+            "birth_date": "Fecha de nacimiento *",
+            "birth_place": "Lugar de nacimiento (Ciudad o País) *",
+            "citizenship": "Nacionalidad *",
+            "residence": "Dirección completa de residencia (Calle, Ciudad, País) *",
+            "doc_type": "Tipo de documento *",
+            "doc_options": ["Pasaporte", "Documento Nacional de Identidad", "Permiso de conducir"],
+            "doc_number": "Número de documento *",
+            "doc_issue": "Lugar de expedición (Ciudad o País) *",
+            "email": "Correo electrónico *",
+            "phone": "Teléfono / WhatsApp *",
+            "companions_title": "👥 Acompañantes (solo datos personales)",
+            "guest_n": "Huésped",
+            "step3": "3. Carga de documento, Privacidad y Firma",
+            "upload_label": "Adjunta una foto/escaneo del documento de identidad del huésped principal (Anverso/Reverso - JPG, PNG, PDF) *",
+            "privacy_cb": "He leído la Política de Privacidad (RGPD) y autorizo el tratamiento de datos personales para el registro obligatorio de viajeros. *",
+            "rules_cb": "Acepto las Normas de la casa y las condiciones de alquiler. *",
+            "signature": "Firma digital (escribe tu Nombre y Apellidos para confirmar) *",
+            "submit_btn": "✅ Completar Check-in Online",
+            "err_dates": "La fecha de salida debe ser posterior a la fecha de entrada.",
+            "err_main": "Por favor, completa todos los campos obligatorios del huésped principal: ",
+            "err_comp": "Por favor, completa todos los datos personales de cada acompañante.",
+            "err_doc": "Por favor, adjunta al menos una foto o escaneo de tu documento de identidad.",
+            "err_consent": "Debes aceptar la Política de Privacidad y las Normas de la casa.",
+            "success_msg": "🎉 ¡Check-in online completado con éxito!",
+            "next_steps": "**Siguiente paso — Llegada y Acceso:**\n\nHemos recibido tus datos. El anfitrión se pondrá en contacto contigo en breve por WhatsApp/Email para realizar la breve verificación de identidad (en persona o por videollamada) y enviarte las instrucciones de acceso.",
+            "err_save": "Error al guardar el check-in: "
+        },
+        "Italiano": {
+            "title": "🛎️ Check-in Online — Al Badiya",
+            "lang_label": "🌐 Lingua",
+            "step1": "1. Riepilogo
 # ----------------------------------------------------
 # PROTEZIONE CON PASSWORD PER IL GESTIONALE INTERNO
 # ----------------------------------------------------

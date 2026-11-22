@@ -95,7 +95,7 @@ def get_seasonality_factor(dt: date):
 # ----------------------------------------------------
 menu = st.sidebar.radio(
     "Navigazione",
-    ["Bookings", "Nuova Prenotazione", "Registro Spese", "Forecast & Pricing Dinamico", "Calendario"]
+    ["Bookings", "Nuova Prenotazione", "Registro Spese", "Report Annuale", "Forecast & Pricing Dinamico", "Calendario"]
 )
 
 # ----------------------------------------------------
@@ -178,26 +178,33 @@ elif menu == "Nuova Prenotazione":
         st.session_state.reset_form = False
 
     if st.session_state.reset_form:
-        for key in ["in_client", "in_nat", "in_nights", "in_gross", "in_clean"]:
+        # Rimossa anche la chiave in_clean
+        for key in ["in_client", "in_nat", "in_contact", "in_gross"]:
             if key in st.session_state:
                 del st.session_state[key]
         st.session_state.reset_form = False
 
-    col1, col2, col3 = st.columns(3)
+    # Prima riga: Ospite e Nazionalità
+    col1, col2 = st.columns(2)
     client = col1.text_input("Nome Ospite", key="in_client")
     nationality = col2.text_input("Nazionalità", key="in_nat")
     
+    # Seconda riga: Contatto e Canale
+    col3, col4 = st.columns(2)
+    contact = col3.text_input("Contatto (Tel/Email)", key="in_contact")
     canali_disponibili = ["Ali", "Booking", "Airbnb", "Younes", "Ayoub"]
-    channel = col3.selectbox("Canale", canali_disponibili, key="in_chan")
+    channel = col4.selectbox("Canale", canali_disponibili, key="in_chan")
     
-    col4, col5 = st.columns(2)
-    check_in = col4.date_input("Data Check-in", value=date.today(), key="in_ci")
-    check_out = col5.date_input("Data Check-out", value=date.today() + timedelta(days=1), key="in_co")
+    # Terza riga: Date
+    col5, col6 = st.columns(2)
+    check_in = col5.date_input("Data Check-in", value=date.today(), key="in_ci")
+    check_out = col6.date_input("Data Check-out", value=date.today() + timedelta(days=1), key="in_co")
 
-    calc_nights = max((check_out - check_in).days, 1)
+    # Calcolo Notti Invisibile in background (sempre almeno 1 notte)
+    nights = max((check_out - check_in).days, 1)
     
-    col6, col7 = st.columns(2)
-    nights = col6.number_input("Numero Notti", min_value=1, value=calc_nights, key="in_nights")
+    # Quarta riga: Prezzo Lordo e Commissioni
+    col7, col8 = st.columns(2)
     gross_price = col7.number_input("Prezzo Lordo (€)", min_value=0.0, step=5.0, value=70.0, key="in_gross")
 
     # Calcolo commissioni in tempo reale
@@ -217,12 +224,16 @@ elif menu == "Nuova Prenotazione":
         commission_auto = 0.0
         fee_type = "None"
 
-    col8, col9 = st.columns(2)
+    # Commissioni calcolate automaticamente e affiancate al prezzo
     commission = col8.number_input("Commissioni (calcolate in automatico €)", value=float(commission_auto), disabled=True)
-    cleaning_fee = col9.number_input("Costi Pulizie (€)", min_value=0.0, step=1.0, value=10.0, key="in_clean")
+
+    # Costo pulizie fisso in background
+    cleaning_fee = 10.0
 
     net_price = max(0.0, gross_price - commission - cleaning_fee)
-    st.info(f"💡 Ricavo Netto Calcolato: **€ {net_price:.2f}**")
+    
+    # Mostriamo notti calcolate, pulizie e netto nel riquadro riassuntivo
+    st.info(f"💡 Notti calcolate: **{nights}** | Pulizie fisse: **€ 10.00** | Ricavo Netto: **€ {net_price:.2f}**")
 
     if st.button("💾 Salva Prenotazione"):
         if check_out <= check_in:
@@ -241,6 +252,7 @@ elif menu == "Nuova Prenotazione":
                     "id": next_id,
                     "client": client,
                     "nationality": nationality,
+                    "contact": contact, 
                     "channel": channel,
                     "fee_type": fee_type,
                     "check_in": check_in.isoformat(),
@@ -262,47 +274,73 @@ elif menu == "Nuova Prenotazione":
             except Exception as e:
                 st.error(f"Errore durante il salvataggio: {e}")
 
-    # --- TABELLA ULTIMI INSERIMENTI IN DATA ENTRY ---
+    # --- TABELLA COMPLETA IN DATA ENTRY (MODIFICABILE) ---
     st.markdown("---")
-    st.subheader("Ultimi Inserimenti")
+    st.subheader("Modifica Rapida Prenotazioni")
+    st.write("Fai doppio clic su qualsiasi cella per modificare il valore (stile Excel), poi premi il pulsante sotto per aggiornare il database.")
     
     df_b = load_bookings()
     if not df_b.empty:
-        ordine_ideale = [
-            "id", "client", "nationality", "channel", 
+        cols_to_edit = [
+            "id", "client", "nationality", "contact", "channel", 
             "check_in", "check_out", "nights", 
             "gross_price", "commission", "cleaning_fee", "net_price"
         ]
         
-        display_cols = [c for c in ordine_ideale if c in df_b.columns]
-        df_display_entry = df_b[display_cols].copy()
+        display_cols = [c for c in cols_to_edit if c in df_b.columns]
+        df_edit = df_b[display_cols].copy()
         
-        rename_dict = {
-            "id": "ID",
-            "client": "Ospite",
-            "nationality": "Nazionalità",
-            "channel": "Canale",
-            "check_in": "Check-in",
-            "check_out": "Check-out",
-            "nights": "Notti",
-            "gross_price": "Lordo (€)",
-            "commission": "Comm. (€)",
-            "cleaning_fee": "Pulizie (€)",
-            "net_price": "Netto (€)"
-        }
-        df_display_entry = df_display_entry.rename(columns=rename_dict)
-        
-        for col in ["Lordo (€)", "Comm. (€)", "Pulizie (€)", "Netto (€)"]:
-            if col in df_display_entry.columns:
-                df_display_entry[col] = pd.to_numeric(df_display_entry[col], errors='coerce').apply(lambda x: f"{x:.2f}" if pd.notnull(x) else "0.00")
-        
-        if "ID" in df_display_entry.columns:
-            df_display_entry = df_display_entry.sort_values(by="ID", ascending=False)
-        elif "Check-in" in df_display_entry.columns:
-            df_display_entry["Check-in"] = pd.to_datetime(df_display_entry["Check-in"]).dt.date
-            df_display_entry = df_display_entry.sort_values(by="Check-in", ascending=False)
+        if "check_in" in df_edit.columns:
+            df_edit["check_in"] = pd.to_datetime(df_edit["check_in"]).dt.date
+        if "check_out" in df_edit.columns:
+            df_edit["check_out"] = pd.to_datetime(df_edit["check_out"]).dt.date
             
-        st.dataframe(df_display_entry.head(10), use_container_width=True, hide_index=True)
+        if "check_in" in df_edit.columns:
+            df_edit = df_edit.sort_values(by="check_in", ascending=False).reset_index(drop=True)
+            
+        edited_df = st.data_editor(
+            df_edit,
+            use_container_width=True,
+            hide_index=True,
+            key="booking_editor",
+            column_config={
+                "id": st.column_config.NumberColumn("ID", disabled=True),
+                "client": st.column_config.TextColumn("Ospite"),
+                "nationality": st.column_config.TextColumn("Nazionalità"),
+                "contact": st.column_config.TextColumn("Contatto"), 
+                "channel": st.column_config.SelectboxColumn("Canale", options=["Ali", "Booking", "Airbnb", "Younes", "Ayoub", "Diretto"]),
+                "check_in": st.column_config.DateColumn("Check-in"),
+                "check_out": st.column_config.DateColumn("Check-out"),
+                "nights": st.column_config.NumberColumn("Notti", min_value=1),
+                "gross_price": st.column_config.NumberColumn("Lordo (€)", format="%.2f €"),
+                "commission": st.column_config.NumberColumn("Comm. (€)", format="%.2f €"),
+                "cleaning_fee": st.column_config.NumberColumn("Pulizie (€)", format="%.2f €"),
+                "net_price": st.column_config.NumberColumn("Netto (€)", format="%.2f €")
+            }
+        )
+        
+        if st.button("🔄 Salva Modifiche Tabella"):
+            changes = st.session_state.booking_editor["edited_rows"]
+            if changes:
+                try:
+                    for row_idx, updates in changes.items():
+                        booking_id = int(df_edit.iloc[row_idx]["id"])
+                        db_update = {}
+                        
+                        for col, val in updates.items():
+                            if col in ["check_in", "check_out"]:
+                                db_update[col] = str(val)[:10] 
+                            else:
+                                db_update[col] = val
+                                
+                        supabase.table("bookings").update(db_update).eq("id", booking_id).execute()
+                        
+                    st.success("✅ Tutte le modifiche sono state salvate nel database!")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Errore durante l'aggiornamento: {e}")
+            else:
+                st.info("Nessuna modifica rilevata. Cambia qualche valore facendo doppio clic su una cella prima di salvare.")
     else:
         st.info("Nessuna prenotazione presente.")
 
@@ -366,6 +404,148 @@ elif menu == "Registro Spese":
         st.dataframe(df_exp_display, use_container_width=True, hide_index=True)
     else:
         st.info("Nessuna spesa presente.")
+
+# ----------------------------------------------------
+# SEZIONE: REPORT ANNUALE (RIEPILOGO & TOTAL COSTS)
+# ----------------------------------------------------
+elif menu == "Report Annuale":
+    st.title("📈 Report Annuale & Analisi Costi (€)")
+
+    df_b = load_bookings()
+    df_exp = load_bills()
+
+    if df_b.empty:
+        st.info("Nessuna prenotazione disponibile per generare il report.")
+    else:
+        # --- PREPARAZIONE DATI PRENOTAZIONI ---
+        df_b = df_b.copy()
+        if "year" not in df_b.columns or df_b["year"].isna().any():
+            df_b["year"] = pd.to_datetime(df_b["check_in"], errors="coerce").dt.year
+
+        df_b = df_b.dropna(subset=["year"])
+        df_b["year"] = df_b["year"].astype(int)
+
+        for col in ["nights", "gross_price", "net_price", "commission", "cleaning_fee"]:
+            if col in df_b.columns:
+                df_b[col] = pd.to_numeric(df_b[col], errors="coerce").fillna(0.0)
+            else:
+                df_b[col] = 0.0
+
+        # Aggregazione prenotazioni per anno
+        b_yearly = df_b.groupby("year").agg(
+            num_prenotazioni=("id", "count"),
+            num_notti=("nights", "sum"),
+            gross_price=("gross_price", "sum"),
+            net_price=("net_price", "sum"),
+            commissioni=("commission", "sum"),
+            pulizie=("cleaning_fee", "sum")
+        ).reset_index()
+
+        # --- PREPARAZIONE DATI SPESE (BILLS) ---
+        if not df_exp.empty:
+            df_exp = df_exp.copy()
+
+            # Individua la colonna anno/data disponibile in bills
+            if "year" in df_exp.columns and df_exp["year"].notna().any():
+                df_exp["year"] = pd.to_numeric(df_exp["year"], errors="coerce")
+            elif "month" in df_exp.columns:
+                df_exp["year"] = pd.to_datetime(df_exp["month"], errors="coerce").dt.year
+            elif "date" in df_exp.columns:
+                df_exp["year"] = pd.to_datetime(df_exp["date"], errors="coerce").dt.year
+            else:
+                df_exp["year"] = np.nan
+
+            # Individua la colonna importo (total_bills oppure amount)
+            bill_col = "total_bills" if "total_bills" in df_exp.columns else ("amount" if "amount" in df_exp.columns else None)
+
+            if bill_col:
+                df_exp[bill_col] = pd.to_numeric(df_exp[bill_col], errors="coerce").fillna(0.0)
+                exp_yearly = df_exp.dropna(subset=["year"]).groupby("year")[bill_col].sum().reset_index()
+                exp_yearly["year"] = exp_yearly["year"].astype(int)
+                exp_yearly = exp_yearly.rename(columns={bill_col: "total_bills"})
+            else:
+                exp_yearly = pd.DataFrame(columns=["year", "total_bills"])
+        else:
+            exp_yearly = pd.DataFrame(columns=["year", "total_bills"])
+
+        # --- UNIONE DATI PER ANNO ---
+        report = pd.merge(b_yearly, exp_yearly, on="year", how="outer").fillna(0.0)
+        report = report.sort_values(by="year", ascending=True)
+        report["year"] = report["year"].astype(int).astype(str)
+
+        # Calcoli richiesti
+        report["total_costs"] = report["commissioni"] + report["pulizie"] + report["total_bills"]
+        report["net_profit"] = report["net_price"] - report["total_costs"]
+
+        # ====================================================
+        # TABELLA 1: RIEPILOGO ANNUALE
+        # ====================================================
+        st.subheader("Riepilogo Annuale")
+
+        tab1 = report[[
+            "year", "num_prenotazioni", "num_notti",
+            "gross_price", "net_price", "total_costs", "net_profit"
+        ]].copy()
+
+        # Riga Totale complessivo
+        totale_1 = pd.DataFrame([{
+            "year": "Totale complessivo",
+            "num_prenotazioni": tab1["num_prenotazioni"].sum(),
+            "num_notti": tab1["num_notti"].sum(),
+            "gross_price": tab1["gross_price"].sum(),
+            "net_price": tab1["net_price"].sum(),
+            "total_costs": tab1["total_costs"].sum(),
+            "net_profit": tab1["net_profit"].sum()
+        }])
+        tab1 = pd.concat([tab1, totale_1], ignore_index=True)
+
+        # Formattazione
+        tab1["num_prenotazioni"] = tab1["num_prenotazioni"].astype(int)
+        tab1["num_notti"] = tab1["num_notti"].astype(int)
+        for col in ["gross_price", "net_price", "total_costs", "net_profit"]:
+            tab1[col] = tab1[col].apply(lambda x: f"€ {x:,.2f}")
+
+        tab1 = tab1.rename(columns={
+            "year": "Anno",
+            "num_prenotazioni": "Numero Prenotazioni",
+            "num_notti": "Numero Notti",
+            "gross_price": "Gross Price (€)",
+            "net_price": "Net Price (€)",
+            "total_costs": "Total Costs (€)",
+            "net_profit": "Net Profit (€)"
+        })
+
+        st.dataframe(tab1, use_container_width=True, hide_index=True)
+
+        # ====================================================
+        # TABELLA 2: DETTAGLIO TOTAL COSTS
+        # ====================================================
+        st.markdown("---")
+        st.subheader("Dettaglio Total Costs")
+
+        tab2 = report[["year", "commissioni", "pulizie", "total_bills"]].copy()
+
+        # Riga Totale complessivo
+        totale_2 = pd.DataFrame([{
+            "year": "Totale complessivo",
+            "commissioni": tab2["commissioni"].sum(),
+            "pulizie": tab2["pulizie"].sum(),
+            "total_bills": tab2["total_bills"].sum()
+        }])
+        tab2 = pd.concat([tab2, totale_2], ignore_index=True)
+
+        # Formattazione
+        for col in ["commissioni", "pulizie", "total_bills"]:
+            tab2[col] = tab2[col].apply(lambda x: f"€ {x:,.2f}")
+
+        tab2 = tab2.rename(columns={
+            "year": "Anno",
+            "commissioni": "Commissioni (€)",
+            "pulizie": "Pulizie (€)",
+            "total_bills": "Total Bills (€)"
+        })
+
+        st.dataframe(tab2, use_container_width=True, hide_index=True)
 
 # ----------------------------------------------------
 # SEZIONE 4: FORECAST & PRICING DINAMICO

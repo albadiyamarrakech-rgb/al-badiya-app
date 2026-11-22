@@ -6,6 +6,7 @@ import numpy as np
 from datetime import datetime, date, timedelta
 from supabase import create_client, Client
 import base64
+from fpdf import FPDF
 
 # ----------------------------------------------------
 # 1. CONFIGURAZIONE PAGINA & BRANDING
@@ -59,6 +60,102 @@ except Exception as e:
 # ----------------------------------------------------
 # MODALITÀ CHECK-IN ONLINE PER CLIENTI (?checkin=...)
 # ----------------------------------------------------
+def generate_marrakech_contract_pdf(data: dict, property_name: str = "AL BADIYA — MARRAKECH", property_address: str = "Marrakech, Morocco", host_name: str = "Al Badiya Management"):
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_auto_page_break(auto=True, margin=15)
+
+    def clean_txt(val):
+        # Replaces unsupported unicode characters for standard Helvetica font
+        return str(val or "-").encode("latin-1", "replace").decode("latin-1")
+
+    # --- HEADER ---
+    if os.path.exists("logo.png"):
+        pdf.image("logo.png", x=90, y=10, w=30)
+        pdf.ln(26)
+
+    pdf.set_font("Helvetica", "B", 14)
+    pdf.cell(0, 8, clean_txt("CONTRAT DE LOCATION SAISONNIÈRE & FICHE DE POLICE"), ln=True, align="C")
+    pdf.set_font("Helvetica", "I", 10)
+    pdf.cell(0, 6, clean_txt("Short-Term Rental Agreement & Official Guest Registration — Marrakech"), ln=True, align="C")
+    pdf.ln(4)
+
+    # --- PROPERTY & HOST INFO ---
+    pdf.set_fill_color(240, 240, 240)
+    pdf.set_font("Helvetica", "B", 10)
+    pdf.cell(0, 7, clean_txt("1. ÉTABLISSEMENT / PROPERTY & HOST DETAILS"), ln=True, fill=True)
+    pdf.set_font("Helvetica", "", 9)
+    pdf.cell(95, 6, clean_txt(f"Property / Résidence: {property_name}"), border=1)
+    pdf.cell(95, 6, clean_txt(f"Host / Gestionnaire: {host_name}"), border=1, ln=True)
+    pdf.cell(95, 6, clean_txt(f"Location / Ville: {property_address}"), border=1)
+    booking_ref = data.get("booking_id") if data.get("booking_id") else "Direct / New"
+    pdf.cell(95, 6, clean_txt(f"Booking Ref / Réf: #{booking_ref}"), border=1, ln=True)
+    pdf.cell(95, 6, clean_txt(f"Check-in / Arrivée: {data.get('check_in_date', '-')}"), border=1)
+    pdf.cell(95, 6, clean_txt(f"Check-out / Départ: {data.get('check_out_date', '-')}"), border=1, ln=True)
+    pdf.ln(4)
+
+    # --- MAIN GUEST POLICE REGISTRATION ---
+    pdf.set_font("Helvetica", "B", 10)
+    pdf.cell(0, 7, clean_txt("2. LOCATAIRE PRINCIPAL / MAIN GUEST IDENTITY (FICHE DE POLICE)"), ln=True, fill=True)
+    pdf.set_font("Helvetica", "", 9)
+    pdf.cell(95, 6, clean_txt(f"Last Name / Nom: {data.get('last_name', '-')}"), border=1)
+    pdf.cell(95, 6, clean_txt(f"First Name / Prénom: {data.get('first_name', '-')}"), border=1, ln=True)
+    pdf.cell(63, 6, clean_txt(f"Gender / Sexe: {data.get('gender', '-')}"), border=1)
+    pdf.cell(63, 6, clean_txt(f"Birth Date / Né(e) le: {data.get('birth_date', '-')}"), border=1)
+    pdf.cell(64, 6, clean_txt(f"Nationality / Nationalité: {data.get('citizenship', '-')}"), border=1, ln=True)
+    pdf.cell(95, 6, clean_txt(f"Place of Birth / Lieu de naissance: {data.get('birth_place', '-')}"), border=1)
+    pdf.cell(95, 6, clean_txt(f"Profession: {data.get('profession', '-')}"), border=1, ln=True)
+    pdf.cell(0, 6, clean_txt(f"Permanent Address / Adresse domicile: {data.get('residence', '-')}"), border=1, ln=True)
+    pdf.cell(63, 6, clean_txt(f"ID Type / Document: {data.get('doc_type', '-')}"), border=1)
+    pdf.cell(63, 6, clean_txt(f"ID Number / N° Pièce: {data.get('doc_number', '-')}"), border=1)
+    pdf.cell(64, 6, clean_txt(f"Issued In / Délivré à: {data.get('doc_issue_place', '-')}"), border=1, ln=True)
+    pdf.cell(63, 6, clean_txt(f"Morocco Entry / Entrée Maroc: {data.get('entry_date_morocco', '-')}"), border=1)
+    pdf.cell(63, 6, clean_txt(f"Phone / Tél: {data.get('phone', '-')}"), border=1)
+    pdf.cell(64, 6, clean_txt(f"Email: {data.get('email', '-')}"), border=1, ln=True)
+    pdf.ln(4)
+
+    # --- ACCOMPANYING GUESTS ---
+    companions = data.get("companions") or []
+    pdf.set_font("Helvetica", "B", 10)
+    pdf.cell(0, 7, clean_txt(f"3. ACCOMPAGNANTS / ACCOMPANYING GUESTS ({len(companions)})"), ln=True, fill=True)
+    pdf.set_font("Helvetica", "", 9)
+    if not companions:
+        pdf.cell(0, 6, clean_txt("Aucun accompagnant / No accompanying guests."), border=1, ln=True)
+    else:
+        for idx, c in enumerate(companions, start=1):
+            line = (
+                f"#{idx}: {c.get('last_name', '')} {c.get('first_name', '')} | "
+                f"Sex: {c.get('gender', '')} | DOB: {c.get('birth_date', '')} ({c.get('birth_place', '')}) | "
+                f"Nat: {c.get('citizenship', '')} | Doc: {c.get('doc_number', '-')}"
+            )
+            pdf.cell(0, 6, clean_txt(line), border=1, ln=True)
+    pdf.ln(4)
+
+    # --- SHORT-TERM RENTAL CONTRACT CLAUSES ---
+    pdf.set_font("Helvetica", "B", 10)
+    pdf.cell(0, 7, clean_txt("4. CONDITIONS DU CONTRAT / RENTAL AGREEMENT TERMS"), ln=True, fill=True)
+    pdf.set_font("Helvetica", "", 8)
+    terms = (
+        "FR: Le présent contrat est conclu à titre de résidence provisoire et de plaisance pour la durée indiquée ci-dessus. "
+        "Le locataire s'engage à respecter le règlement intérieur, la tranquillité du voisinage (22h00-08h00), à ne pas sous-louer "
+        "ni héberger des personnes non déclarées aux autorités de police marocaines, et à restituer le logement en bon état.\n"
+        "EN: This short-term rental agreement is valid strictly for the stay dates listed above. The guest agrees to comply with "
+        "house rules, respect quiet hours (10:00 PM - 8:00 AM), host only guests registered with local police authorities, and "
+        "return the property in good condition."
+    )
+    pdf.multi_cell(0, 4.5, clean_txt(terms), border=1)
+    pdf.ln(4)
+
+    # --- SIGNATURES & DECLARATIONS ---
+    pdf.set_font("Helvetica", "B", 9)
+    timestamp_str = datetime.now().strftime("%Y-%m-%d %H:%M UTC")
+    pdf.cell(0, 6, clean_txt(f"GDPR / Privacy Consent: ACCEPTED   |   House Rules: ACCEPTED   |   Date: {timestamp_str}"), ln=True)
+    pdf.ln(2)
+    pdf.cell(95, 14, clean_txt(f"Guest Digital Signature / Signature du Locataire:\n{data.get('digital_signature', '-')}"), border=1)
+    pdf.cell(95, 14, clean_txt(f"Host / Bailleur ({host_name}):\nVerified & Approved"), border=1, ln=True)
+
+    return bytes(pdf.output())
+
 checkin_param = None
 if hasattr(st, "query_params"):
     raw_val = st.query_params.get("checkin", None)
@@ -558,13 +655,19 @@ if checkin_param is not None and checkin_param != "":
                     (T["first_name"], first_name), (T["last_name"], last_name),
                     (T["birth_place"], birth_place), (T["citizenship"], citizenship),
                     (T["residence"], residence), (T["doc_number"], doc_number),
-                    (T["doc_issue"], doc_issue_place), (T["email"], email),
-                    (T["phone"], phone), (T["signature"], signature)
+                    (T["doc_issue"], doc_issue_place), (T["profession"], profession),
+                    (T["email"], email), (T["phone"], phone), (T["signature"], signature)
                 ] if not val.strip()
             ]
 
             missing_comp = any(
-                not (c["first_name"].strip() and c["last_name"].strip() and c["birth_place"].strip() and c["citizenship"].strip())
+                not (
+                    c["first_name"].strip()
+                    and c["last_name"].strip()
+                    and c["birth_place"].strip()
+                    and c["citizenship"].strip()
+                    and c["doc_number"].strip()
+                )
                 for c in companions_data
             )
 
@@ -608,6 +711,8 @@ if checkin_param is not None and checkin_param != "":
                         "doc_type": doc_type,
                         "doc_number": doc_number.strip(),
                         "doc_issue_place": doc_issue_place.strip(),
+                        "profession": profession.strip(),
+                        "entry_date_morocco": entry_date_morocco.isoformat(),
                         "email": email.strip(),
                         "phone": phone.strip(),
                         "companions": companions_data,
@@ -617,12 +722,47 @@ if checkin_param is not None and checkin_param != "":
                         "digital_signature": signature.strip()
                     }
 
+                    # Generate Contract & Police Registration PDF
+                    pdf_bytes = generate_marrakech_contract_pdf(
+                        checkin_payload,
+                        property_name="AL BADIYA — MARRAKECH",
+                        property_address="Marrakech, Morocco",
+                        host_name="Al Badiya Hospitality"
+                    )
+
+                    pdf_filename = f"Contract_Police_{last_name.strip()}_{guest_ci.isoformat()}.pdf"
+                    pdf_storage_path = f"{folder_tag}/{pdf_filename}"
+
+                    try:
+                        supabase.storage.from_("documents").upload(
+                            path=pdf_storage_path,
+                            file=pdf_bytes,
+                            file_options={"content-type": "application/pdf"}
+                        )
+                    except Exception:
+                        pass
+
+                    checkin_payload["contract_pdf_path"] = pdf_storage_path
                     supabase.table("guest_checkins").insert(checkin_payload).execute()
 
-                    st.success(T["success_msg"])
-                    st.info(T["next_steps"])
+                    st.session_state["generated_contract_pdf"] = pdf_bytes
+                    st.session_state["generated_contract_name"] = pdf_filename
+                    st.session_state["checkin_completed_msg"] = True
                 except Exception as e:
                     st.error(f"{T['err_save']}{e}")
+
+    # Outside st.form so the download button works without resetting the form
+    if st.session_state.get("checkin_completed_msg"):
+        st.success(T["success_msg"])
+        if "generated_contract_pdf" in st.session_state:
+            st.download_button(
+                label=T["download_btn"],
+                data=st.session_state["generated_contract_pdf"],
+                file_name=st.session_state["generated_contract_name"],
+                mime="application/pdf",
+                width="stretch"
+            )
+        st.info(T["next_steps"])
 
     st.stop()
 # ----------------------------------------------------
@@ -1292,6 +1432,19 @@ elif menu == "Check-in Ricevuti":
             st.write("**File allegati:**")
             for file_path in doc_files:
                 st.write(f"- `{file_path}`")
+st.markdown("---")
+        admin_pdf_bytes = generate_marrakech_contract_pdf(
+            rec,
+            property_name="AL BADIYA — MARRAKECH",
+            property_address="Marrakech, Morocco",
+            host_name="Al Badiya Hospitality"
+        )
+        st.download_button(
+            label="📄 Scarica Contratto & Schedina Polizia (PDF)",
+            data=admin_pdf_bytes,
+            file_name=f"Contract_Police_{rec.get('last_name', 'Guest')}_{rec.get('check_in_date', '')}.pdf",
+            mime="application/pdf"
+        )
 
 # ----------------------------------------------------
 # SEZIONE 4: FORECAST & PRICING DINAMICO

@@ -4,3 +4,4 @@ supabase
 matplotlib
 openpyxl
 jinja2
+fpdf2

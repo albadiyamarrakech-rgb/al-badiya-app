@@ -1342,7 +1342,7 @@ elif menu == "Check-in Ricevuti":
         else:
             st.info("Nessuna prenotazione disponibile.")
 
-    st.markdown("---")
+        st.markdown("---")
 
     # --- CARICAMENTO CHECK-IN DA SUPABASE ---
     try:

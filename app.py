@@ -1432,7 +1432,7 @@ elif menu == "Check-in Ricevuti":
             st.write("**File allegati:**")
             for file_path in doc_files:
                 st.write(f"- `{file_path}`")
-st.markdown("---")
+        st.markdown("---")
         admin_pdf_bytes = generate_marrakech_contract_pdf(
             rec,
             property_name="AL BADIYA — MARRAKECH",

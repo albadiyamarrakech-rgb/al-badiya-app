@@ -57,6 +57,281 @@ except Exception as e:
     supabase = None
 
 # ----------------------------------------------------
+# MODALITÀ CHECK-IN ONLINE PER CLIENTI (?checkin=...)
+# ----------------------------------------------------
+checkin_param = None
+if hasattr(st, "query_params"):
+    raw_val = st.query_params.get("checkin", None)
+    if isinstance(raw_val, list) and len(raw_val) > 0:
+        checkin_param = str(raw_val[0]).strip()
+    elif raw_val is not None:
+        checkin_param = str(raw_val).strip()
+
+if not checkin_param:
+    try:
+        params = st.experimental_get_query_params()
+        if "checkin" in params and len(params["checkin"]) > 0:
+            checkin_param = str(params["checkin"][0]).strip()
+    except Exception:
+        pass
+
+if checkin_param is not None and checkin_param != "":
+    # Nasconde la sidebar gestionale per la privacy dei tuoi dati
+    st.markdown(
+        """
+        <style>
+            [data-testid="stSidebar"] {display: none;}
+            [data-testid="collapsedControl"] {display: none;}
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
+
+    if os.path.exists("logo.png"):
+        col_l, col_c, col_r = st.columns([2, 1, 2])
+        col_c.image("logo.png", width="stretch")
+
+    st.title("🛎️ Check-in Online — Al Badiya")
+
+    # 1. Cerca se l'ID corrisponde a una prenotazione già esistente nel DB
+    booking_info = None
+    booking_id_int = int(checkin_param) if checkin_param.isdigit() else None
+
+    if supabase and booking_id_int is not None:
+        try:
+            res = supabase.table("bookings").select("*").eq("id", booking_id_int).execute()
+            if res.data:
+                booking_info = res.data[0]
+        except Exception:
+            booking_info = None
+
+    # --- STEP 1: RIEPILOGO SOGGIORNO & REGOLE ---
+    st.subheader("1. Riepilogo del Soggiorno e Regole della Casa")
+
+    if booking_info:
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Prenotazione #", booking_info.get("id", "-"))
+        c2.metric("Check-in", str(booking_info.get("check_in", "-"))[:10])
+        c3.metric("Check-out", str(booking_info.get("check_out", "-"))[:10])
+        c4.metric("Notti", booking_info.get("nights", "-"))
+        default_ci = pd.to_datetime(booking_info.get("check_in")).date()
+        default_co = pd.to_datetime(booking_info.get("check_out")).date()
+    else:
+        st.info("Compila le date del tuo soggiorno e i dati anagrafici richiesti per completare la registrazione.")
+        default_ci = date.today()
+        default_co = date.today() + timedelta(days=1)
+
+    with st.expander("📜 Leggi le Regole della Casa e Condizioni di Soggiorno", expanded=False):
+        st.markdown("""
+        - **Check-in / Check-out:** Rispettare gli orari concordati con l'host.
+        - **Silenzio:** Rispettare la quiete notturna dalle 22:00 alle 08:00.
+        - **Ospiti:** L'accesso è consentito solo alle persone regolarmente registrate.
+        - **Fumo:** Vietato fumare all'interno della struttura.
+        - **Verifica identità:** Ai sensi della normativa vigente, l'invio online velocizza la registrazione ma resta obbligatoria la verifica dell'identità *de visu* (di persona o in videochiamata in tempo reale) prima della consegna delle chiavi/codici.
+        """)
+
+    st.markdown("---")
+
+    st.subheader("2. Dati del Soggiorno e degli Ospiti")
+    num_companions = st.number_input(
+        "Quanti altri ospiti viaggiano con te? (escluso l'ospite principale)",
+        min_value=0, max_value=10, value=0, step=1
+    )
+
+    with st.form("online_checkin_form"):
+        # Se è una nuova prenotazione senza ID nel DB, chiede le date direttamente al cliente
+        if not booking_info:
+            st.markdown("#### 📅 Date del Soggiorno")
+            dc1, dc2 = st.columns(2)
+            guest_ci = dc1.date_input("Data Check-in *", value=default_ci)
+            guest_co = dc2.date_input("Data Check-out *", value=default_co)
+            st.markdown("---")
+        else:
+            guest_ci = default_ci
+            guest_co = default_co
+
+        # --- OSPITE PRINCIPALE ---
+        st.markdown("#### 👤 Ospite Principale (Capofamiglia / Capogruppo)")
+        col1, col2, col3 = st.columns([2, 2, 1])
+        first_name = col1.text_input("Nome *")
+        last_name = col2.text_input("Cognome *")
+        gender = col3.selectbox("Sesso *", ["M", "F"])
+
+        col4, col5, col6 = st.columns(3)
+        birth_date = col4.date_input(
+            "Data di nascita *",
+            value=date(1990, 1, 1),
+            min_value=date(1920, 1, 1),
+            max_value=date.today()
+        )
+        birth_place = col5.text_input("Luogo di nascita (Comune o Stato estero) *")
+        citizenship = col6.text_input("Cittadinanza *")
+
+        residence = st.text_input("Indirizzo di residenza completo (Via, Città, Paese) *")
+
+        col7, col8, col9 = st.columns(3)
+        doc_type = col7.selectbox(
+            "Tipo di documento *",
+            ["Carta d'Identità", "Passaporto", "Patente di Guida"]
+        )
+        doc_number = col8.text_input("Numero del documento *")
+        doc_issue_place = col9.text_input("Luogo di rilascio (Comune o Stato) *")
+
+        col10, col11 = st.columns(2)
+        email = col10.text_input("Email per comunicazioni *")
+        phone = col11.text_input("Numero di telefono / WhatsApp *")
+
+        # --- ACCOMPAGNATORI ---
+        companions_data = []
+        if num_companions > 0:
+            st.markdown("---")
+            st.markdown("#### 👥 Accompagnatori (solo generalità anagrafiche)")
+            for i in range(int(num_companions)):
+                st.markdown(f"**Ospite {i + 2}**")
+                ac1, ac2, ac3 = st.columns([2, 2, 1])
+                c_first = ac1.text_input("Nome *", key=f"c_fn_{i}")
+                c_last = ac2.text_input("Cognome *", key=f"c_ln_{i}")
+                c_gen = ac3.selectbox("Sesso *", ["M", "F"], key=f"c_gen_{i}")
+
+                ac4, ac5, ac6 = st.columns(3)
+                c_bdate = ac4.date_input(
+                    "Data di nascita *",
+                    value=date(1995, 1, 1),
+                    min_value=date(1920, 1, 1),
+                    max_value=date.today(),
+                    key=f"c_bd_{i}"
+                )
+                c_bplace = ac5.text_input("Luogo di nascita *", key=f"c_bp_{i}")
+                c_cit = ac6.text_input("Cittadinanza *", key=f"c_cit_{i}")
+
+                companions_data.append({
+                    "first_name": c_first,
+                    "last_name": c_last,
+                    "gender": c_gen,
+                    "birth_date": c_bdate.isoformat(),
+                    "birth_place": c_bplace,
+                    "citizenship": c_cit
+                })
+
+        # --- STEP 3: DOCUMENTO, PRIVACY E FIRMA ---
+        st.markdown("---")
+        st.subheader("3. Caricamento Documento, Privacy e Firma")
+
+        uploaded_docs = st.file_uploader(
+            "Allega foto del documento d'identità dell'ospite principale (Fronte/Retro - JPG, PNG, PDF) *",
+            type=["jpg", "jpeg", "png", "pdf"],
+            accept_multiple_files=True
+        )
+
+        privacy_ok = st.checkbox(
+            "Dichiaro di aver letto l'informativa sulla privacy (GDPR) e autorizzo il trattamento dei dati personali ai fini della registrazione degli ospiti (Alloggiati Web / normativa vigente). *"
+        )
+        rules_ok = st.checkbox(
+            "Accetto le Regole della Casa e le condizioni di locazione breve. *"
+        )
+        signature = st.text_input(
+            "Firma digitale (scrivi Nome e Cognome per confermare) *"
+        )
+
+        submitted = st.form_submit_button("✅ Completa Check-in Online", width="stretch")
+
+        if submitted:
+            missing_main = [
+                label for label, val in [
+                    ("Nome", first_name), ("Cognome", last_name),
+                    ("Luogo di nascita", birth_place), ("Cittadinanza", citizenship),
+                    ("Residenza", residence), ("Numero documento", doc_number),
+                    ("Luogo di rilascio", doc_issue_place), ("Email", email),
+                    ("Telefono", phone), ("Firma digitale", signature)
+                ] if not val.strip()
+            ]
+
+            missing_comp = any(
+                not (c["first_name"].strip() and c["last_name"].strip() and c["birth_place"].strip() and c["citizenship"].strip())
+                for c in companions_data
+            )
+
+            if guest_co <= guest_ci:
+                st.error("La data di Check-out deve essere successiva al Check-in.")
+            elif missing_main:
+                st.error(f"Compila tutti i campi obbligatori dell'ospite principale: {', '.join(missing_main)}.")
+            elif missing_comp:
+                st.error("Compila tutte le generalità anagrafiche per ogni accompagnatore indicato.")
+            elif not uploaded_docs:
+                st.error("Allega almeno una foto o scansione del documento d'identità.")
+            elif not privacy_ok or not rules_ok:
+                st.error("Devi accettare sia l'informativa sulla privacy (GDPR) che le regole della casa.")
+            else:
+                try:
+                    saved_files = []
+                    folder_tag = f"booking_{booking_id_int}" if booking_info else f"new_{datetime.now().strftime('%Y%m%d')}"
+                    for f in uploaded_docs:
+                        safe_name = f"{folder_tag}/{datetime.now().strftime('%Y%m%d%H%M%S')}_{f.name}"
+                        try:
+                            supabase.storage.from_("documents").upload(
+                                path=safe_name,
+                                file=f.getvalue(),
+                                file_options={"content-type": f.type}
+                            )
+                            saved_files.append(safe_name)
+                        except Exception:
+                            saved_files.append(f.name)
+
+                    checkin_payload = {
+                        "booking_id": booking_id_int if booking_info else None,
+                        "check_in_date": guest_ci.isoformat(),
+                        "check_out_date": guest_co.isoformat(),
+                        "first_name": first_name.strip(),
+                        "last_name": last_name.strip(),
+                        "gender": gender,
+                        "birth_date": birth_date.isoformat(),
+                        "birth_place": birth_place.strip(),
+                        "citizenship": citizenship.strip(),
+                        "residence": residence.strip(),
+                        "doc_type": doc_type,
+                        "doc_number": doc_number.strip(),
+                        "doc_issue_place": doc_issue_place.strip(),
+                        "email": email.strip(),
+                        "phone": phone.strip(),
+                        "companions": companions_data,
+                        "document_files": saved_files,
+                        "privacy_accepted": True,
+                        "rules_accepted": True,
+                        "digital_signature": signature.strip()
+                    }
+
+                    supabase.table("guest_checkins").insert(checkin_payload).execute()
+
+                    st.success("🎉 Check-in online completato con successo!")
+                    st.info(
+                        "**Prossimo passaggio — Arrivo e Accesso:**\n\n"
+                        "Abbiamo ricevuto i tuoi dati. L'host ti contatterà a breve su WhatsApp/Email per "
+                        "la breve verifica dell'identità (di persona o in videochiamata) e per inviarti le istruzioni definitive di accesso all'alloggio."
+                    )
+                except Exception as e:
+                    st.error(f"Errore durante il salvataggio del check-in: {e}")
+
+    st.stop()
+# ----------------------------------------------------
+# PROTEZIONE CON PASSWORD PER IL GESTIONALE INTERNO
+# ----------------------------------------------------
+if "authenticated" not in st.session_state:
+    st.session_state.authenticated = False
+
+if not st.session_state.authenticated:
+    st.title("🔒 Accesso Riservato — Al Badiya")
+    pwd = st.text_input("Inserisci la password amministratore", type="password")
+    if st.button("Accedi"):
+        # Legge la password dai Secrets oppure usa "albadiya2026" come fallback
+        admin_pwd = st.secrets.get("ADMIN_PASSWORD", "albadiya2026")
+        if pwd == admin_pwd:
+            st.session_state.authenticated = True
+            st.rerun()
+        else:
+            st.error("Password errata.")
+    st.stop()
+
+# ----------------------------------------------------
 # 3. CARICAMENTO DATI
 # ----------------------------------------------------
 def load_bookings():
@@ -95,7 +370,7 @@ def get_seasonality_factor(dt: date):
 # ----------------------------------------------------
 menu = st.sidebar.radio(
     "Navigazione",
-    ["Bookings", "Nuova Prenotazione", "Registro Spese", "Report Annuale", "Forecast & Pricing Dinamico", "Calendario"]
+    ["Bookings", "Nuova Prenotazione", "Check-in Ricevuti", "Registro Spese", "Report Annuale", "Forecast & Pricing Dinamico", "Calendario"]
 )
 
 # ----------------------------------------------------
@@ -431,7 +706,6 @@ elif menu == "Report Annuale":
             else:
                 df_b[col] = 0.0
 
-        # Aggregazione prenotazioni per anno
         b_yearly = df_b.groupby("year").agg(
             num_prenotazioni=("id", "count"),
             num_notti=("nights", "sum"),
@@ -444,8 +718,6 @@ elif menu == "Report Annuale":
         # --- PREPARAZIONE DATI SPESE (BILLS) ---
         if not df_exp.empty:
             df_exp = df_exp.copy()
-
-            # Individua la colonna anno/data disponibile in bills
             if "year" in df_exp.columns and df_exp["year"].notna().any():
                 df_exp["year"] = pd.to_numeric(df_exp["year"], errors="coerce")
             elif "month" in df_exp.columns:
@@ -455,7 +727,6 @@ elif menu == "Report Annuale":
             else:
                 df_exp["year"] = np.nan
 
-            # Individua la colonna importo (total_bills oppure amount)
             bill_col = "total_bills" if "total_bills" in df_exp.columns else ("amount" if "amount" in df_exp.columns else None)
 
             if bill_col:
@@ -473,12 +744,11 @@ elif menu == "Report Annuale":
         report = report.sort_values(by="year", ascending=True)
         report["year"] = report["year"].astype(int).astype(str)
 
-        # Calcoli richiesti
         report["total_costs"] = report["commissioni"] + report["pulizie"] + report["total_bills"]
         report["net_profit"] = report["net_price"] - report["total_costs"]
 
         # ====================================================
-        # TABELLA 1: RIEPILOGO ANNUALE
+        # TABELLA 1: RIEPILOGO ANNUALE (SENZA .style / jinja2)
         # ====================================================
         st.subheader("Riepilogo Annuale")
 
@@ -487,7 +757,12 @@ elif menu == "Report Annuale":
             "gross_price", "net_price", "total_costs", "net_profit"
         ]].copy()
 
-        # Riga Totale complessivo
+        tot_net_profit = tab1["net_profit"].sum()
+        if tot_net_profit != 0:
+            tab1["kpi_pct"] = (tab1["net_profit"] / tot_net_profit) * 100
+        else:
+            tab1["kpi_pct"] = 0.0
+
         totale_1 = pd.DataFrame([{
             "year": "Totale complessivo",
             "num_prenotazioni": tab1["num_prenotazioni"].sum(),
@@ -495,27 +770,65 @@ elif menu == "Report Annuale":
             "gross_price": tab1["gross_price"].sum(),
             "net_price": tab1["net_price"].sum(),
             "total_costs": tab1["total_costs"].sum(),
-            "net_profit": tab1["net_profit"].sum()
+            "net_profit": tot_net_profit,
+            "kpi_pct": 100.0 if tot_net_profit != 0 else 0.0
         }])
         tab1 = pd.concat([tab1, totale_1], ignore_index=True)
 
-        # Formattazione
         tab1["num_prenotazioni"] = tab1["num_prenotazioni"].astype(int)
         tab1["num_notti"] = tab1["num_notti"].astype(int)
-        for col in ["gross_price", "net_price", "total_costs", "net_profit"]:
-            tab1[col] = tab1[col].apply(lambda x: f"€ {x:,.2f}")
 
-        tab1 = tab1.rename(columns={
-            "year": "Anno",
-            "num_prenotazioni": "Numero Prenotazioni",
-            "num_notti": "Numero Notti",
-            "gross_price": "Gross Price (€)",
-            "net_price": "Net Price (€)",
-            "total_costs": "Total Costs (€)",
-            "net_profit": "Net Profit (€)"
-        })
+        anni_mask = tab1["year"] != "Totale complessivo"
+        vals = tab1.loc[anni_mask, "kpi_pct"]
+        vmin, vmax = (vals.min(), vals.max()) if not vals.empty else (0, 100)
 
-        st.dataframe(tab1, use_container_width=True, hide_index=True)
+        def get_kpi_rgb(v):
+            norm = (v - vmin) / (vmax - vmin) if vmax > vmin else 0.5
+            norm = max(0.0, min(1.0, norm))
+            if norm < 0.5:
+                t = norm * 2
+                r, g, b = int(248 + 7 * t), int(105 + 130 * t), int(107 + 25 * t)
+            else:
+                t = (norm - 0.5) * 2
+                r, g, b = int(255 - 156 * t), int(235 - 45 * t), int(132 - 9 * t)
+            return f"rgb({r}, {g}, {b})"
+
+        rows_html = ""
+        for _, row in tab1.iterrows():
+            is_tot = row["year"] == "Totale complessivo"
+            row_style = "font-weight: bold; border-top: 2px solid #888;" if is_tot else "border-bottom: 1px solid #333;"
+            kpi_style = "" if is_tot else f"background-color: {get_kpi_rgb(row['kpi_pct'])}; color: #000000; font-weight: 600;"
+            rows_html += (
+                f'<tr style="{row_style}">'
+                f'<td style="padding:8px;">{row["year"]}</td>'
+                f'<td style="text-align:right; padding:8px;">{row["num_prenotazioni"]}</td>'
+                f'<td style="text-align:right; padding:8px;">{row["num_notti"]}</td>'
+                f'<td style="text-align:right; padding:8px;">€ {row["gross_price"]:,.2f}</td>'
+                f'<td style="text-align:right; padding:8px;">€ {row["net_price"]:,.2f}</td>'
+                f'<td style="text-align:right; padding:8px;">€ {row["total_costs"]:,.2f}</td>'
+                f'<td style="text-align:right; padding:8px;">€ {row["net_profit"]:,.2f}</td>'
+                f'<td style="text-align:right; padding:8px; {kpi_style}">{row["kpi_pct"]:.0f}%</td>'
+                f'</tr>'
+            )
+
+        html_table = (
+            '<table style="width:100%; border-collapse: collapse; font-size: 0.95em;">'
+            '<thead>'
+            '<tr style="border-bottom: 2px solid #555; text-align: right;">'
+            '<th style="text-align:left; padding:8px;">Anno</th>'
+            '<th style="padding:8px;">Numero Prenotazioni</th>'
+            '<th style="padding:8px;">Numero Notti</th>'
+            '<th style="padding:8px;">Gross Price (€)</th>'
+            '<th style="padding:8px;">Net Price (€)</th>'
+            '<th style="padding:8px;">Total Costs (€)</th>'
+            '<th style="padding:8px;">Net Profit (€)</th>'
+            '<th style="padding:8px;">KPI %</th>'
+            '</tr>'
+            '</thead>'
+            f'<tbody>{rows_html}</tbody>'
+            '</table>'
+        )
+        st.markdown(html_table, unsafe_allow_html=True)
 
         # ====================================================
         # TABELLA 2: DETTAGLIO TOTAL COSTS
@@ -525,7 +838,6 @@ elif menu == "Report Annuale":
 
         tab2 = report[["year", "commissioni", "pulizie", "total_bills"]].copy()
 
-        # Riga Totale complessivo
         totale_2 = pd.DataFrame([{
             "year": "Totale complessivo",
             "commissioni": tab2["commissioni"].sum(),
@@ -534,7 +846,6 @@ elif menu == "Report Annuale":
         }])
         tab2 = pd.concat([tab2, totale_2], ignore_index=True)
 
-        # Formattazione
         for col in ["commissioni", "pulizie", "total_bills"]:
             tab2[col] = tab2[col].apply(lambda x: f"€ {x:,.2f}")
 
@@ -546,6 +857,128 @@ elif menu == "Report Annuale":
         })
 
         st.dataframe(tab2, use_container_width=True, hide_index=True)
+
+# ----------------------------------------------------
+# SEZIONE: CHECK-IN RICEVUTI (ALLOGGIATI WEB)
+# ----------------------------------------------------
+elif menu == "Check-in Ricevuti":
+    st.title("🛂 Check-in Ricevuti & Schede Alloggiati")
+
+    # --- GENERATORE RAPIDO LINK CHECK-IN ---
+    with st.expander("🔗 Genera link di check-in da inviare al cliente", expanded=True):
+        base_url = st.text_input(
+            "URL della tua app Streamlit",
+            value="https://al-badiya-app-c4nwtrivspstexhndxhavx.streamlit.app",
+            help="Inserisci l'indirizzo pubblico della tua app su Streamlit Cloud"
+        ).rstrip("/")
+
+        st.markdown("**Link fisso per NUOVE prenotazioni (sempre valido per qualsiasi cliente):**")
+        st.code(f"{base_url}/?checkin=nuovo", language=None)
+
+        st.markdown("**Oppure genera un link collegato a una prenotazione già registrata:**")
+        df_b_link = load_bookings()
+        if not df_b_link.empty and "id" in df_b_link.columns:
+            df_b_link = df_b_link.sort_values(by="id", ascending=False)
+            opzioni_link = {
+                f"ID {int(r['id'])} — {r.get('client', 'Ospite')} ({str(r.get('check_in', ''))[:10]})": int(r["id"])
+                for _, r in df_b_link.iterrows()
+            }
+            scelta_link = st.selectbox("Seleziona prenotazione", list(opzioni_link.keys()))
+            id_scelto = opzioni_link[scelta_link]
+            st.code(f"{base_url}/?checkin={id_scelto}", language=None)
+        else:
+            st.info("Nessuna prenotazione disponibile.")
+
+    st.markdown("---")
+
+    # --- CARICAMENTO CHECK-IN DA SUPABASE ---
+    try:
+        res = supabase.table("guest_checkins").select("*").order("created_at", desc=True).execute()
+        checkins = res.data if res.data else []
+    except Exception as e:
+        st.error(f"Errore caricamento check-in: {e}")
+        checkins = []
+
+    if not checkins:
+        st.info("Nessun check-in online ricevuto al momento.")
+    else:
+        df_ci = pd.DataFrame(checkins)
+
+        # Tabella riepilogativa
+        st.subheader("Elenco Check-in Compilati")
+        df_summary = pd.DataFrame({
+            "ID Prenotazione": df_ci["booking_id"],
+            "Ospite Principale": df_ci["first_name"] + " " + df_ci["last_name"],
+            "Cittadinanza": df_ci["citizenship"],
+            "Documento": df_ci["doc_type"] + " (" + df_ci["doc_number"] + ")",
+            "Accompagnatori": df_ci["companions"].apply(lambda x: len(x) if isinstance(x, list) else 0),
+            "Telefono": df_ci["phone"],
+            "Data Invio": pd.to_datetime(df_ci["created_at"]).dt.strftime("%d/%m/%Y %H:%M")
+        })
+        st.dataframe(df_summary, use_container_width=True, hide_index=True)
+
+        # --- DETTAGLIO SCHEDINA PER COPIA SU ALLOGGIATI WEB ---
+        st.markdown("---")
+        st.subheader("📋 Dettaglio Schedina (Pronta per Alloggiati Web)")
+
+        labels = [
+            f"Prenotazione #{row['booking_id']} — {row['first_name']} {row['last_name']} (inviato il {str(row['created_at'])[:10]})"
+            for row in checkins
+        ]
+        idx_sel = st.selectbox("Seleziona una schedina da visualizzare", range(len(labels)), format_func=lambda i: labels[i])
+        rec = checkins[idx_sel]
+
+        # Ospite Principale
+        st.markdown("#### 👤 Ospite Principale (Capofamiglia / Capogruppo)")
+        c1, c2, c3 = st.columns(3)
+        c1.text_input("Cognome", value=rec.get("last_name", ""), disabled=True)
+        c2.text_input("Nome", value=rec.get("first_name", ""), disabled=True)
+        c3.text_input("Sesso", value=rec.get("gender", ""), disabled=True)
+
+        c4, c5, c6 = st.columns(3)
+        c4.text_input("Data di nascita", value=str(rec.get("birth_date", "")), disabled=True)
+        c5.text_input("Luogo di nascita", value=rec.get("birth_place", ""), disabled=True)
+        c6.text_input("Cittadinanza", value=rec.get("citizenship", ""), disabled=True)
+
+        st.text_input("Residenza", value=rec.get("residence", ""), disabled=True)
+
+        c7, c8, c9 = st.columns(3)
+        c7.text_input("Tipo Documento", value=rec.get("doc_type", ""), disabled=True)
+        c8.text_input("Numero Documento", value=rec.get("doc_number", ""), disabled=True)
+        c9.text_input("Luogo di Rilascio", value=rec.get("doc_issue_place", ""), disabled=True)
+
+        c10, c11 = st.columns(2)
+        c10.text_input("Email", value=rec.get("email", ""), disabled=True)
+        c11.text_input("Telefono / WhatsApp", value=rec.get("phone", ""), disabled=True)
+
+        # Accompagnatori
+        companions = rec.get("companions") or []
+        if isinstance(companions, list) and len(companions) > 0:
+            st.markdown("#### 👥 Accompagnatori")
+            df_comp = pd.DataFrame(companions).rename(columns={
+                "first_name": "Nome",
+                "last_name": "Cognome",
+                "gender": "Sesso",
+                "birth_date": "Data di nascita",
+                "birth_place": "Luogo di nascita",
+                "citizenship": "Cittadinanza"
+            })
+            st.dataframe(df_comp, use_container_width=True, hide_index=True)
+        else:
+            st.caption("Nessun accompagnatore registrato per questa prenotazione.")
+
+        # Consensi, Firma e File Documenti
+        st.markdown("#### 📎 Documenti, Consensi e Firma")
+        f1, f2, f3 = st.columns(3)
+        f1.success("Privacy GDPR: Accettata" if rec.get("privacy_accepted") else "Privacy: Non accettata")
+        f2.success("Regole Casa: Accettate" if rec.get("rules_accepted") else "Regole: Non accettate")
+        f3.info(f"Firma digitale: **{rec.get('digital_signature', '-')}**")
+
+        doc_files = rec.get("document_files") or []
+        if doc_files:
+            st.write("**File allegati:**")
+            for file_path in doc_files:
+                st.write(f"- `{file_path}`")
 
 # ----------------------------------------------------
 # SEZIONE 4: FORECAST & PRICING DINAMICO

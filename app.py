@@ -255,7 +255,376 @@ if checkin_param is not None and checkin_param != "":
         "Italiano": {
             "title": "🛎️ Check-in Online — Al Badiya",
             "lang_label": "🌐 Lingua",
-            "step1": "1. Riepilogo
+            "step1": "1. Riepilogo del Soggiorno e Regole della Casa",
+            "booking_id": "Prenotazione #",
+            "checkin": "Check-in",
+            "checkout": "Check-out",
+            "nights": "Notti",
+            "new_info": "Compila le date del tuo soggiorno e i dati anagrafici richiesti per completare la registrazione.",
+            "rules_expander": "📜 Leggi le Regole della Casa e Condizioni di Soggiorno",
+            "rules_text": """
+- **Check-in / Check-out:** Rispettare gli orari concordati con l'host.
+- **Silenzio:** Rispettare la quiete notturna dalle 22:00 alle 08:00.
+- **Ospiti:** L'accesso è consentito solo alle persone regolarmente registrate.
+- **Fumo:** Vietato fumare all'interno della struttura.
+- **Verifica identità:** Ai sensi della normativa vigente, l'invio online velocizza la registrazione ma resta obbligatoria la verifica dell'identità *de visu* (di persona o in videochiamata in tempo reale) prima della consegna delle chiavi/codici.
+            """,
+            "step2": "2. Dati del Soggiorno e degli Ospiti",
+            "companions_q": "Quanti altri ospiti viaggiano con te? (escluso l'ospite principale)",
+            "stay_dates": "📅 Date del Soggiorno",
+            "ci_date": "Data Check-in *",
+            "co_date": "Data Check-out *",
+            "main_guest": "👤 Ospite Principale (Capofamiglia / Capogruppo)",
+            "first_name": "Nome *",
+            "last_name": "Cognome *",
+            "gender": "Sesso *",
+            "birth_date": "Data di nascita *",
+            "birth_place": "Luogo di nascita (Comune o Stato estero) *",
+            "citizenship": "Cittadinanza *",
+            "residence": "Indirizzo di residenza completo (Via, Città, Paese) *",
+            "doc_type": "Tipo di documento *",
+            "doc_options": ["Passaporto", "Carta d'Identità", "Patente di Guida"],
+            "doc_number": "Numero del documento *",
+            "doc_issue": "Luogo di rilascio (Comune o Stato) *",
+            "email": "Email per comunicazioni *",
+            "phone": "Numero di telefono / WhatsApp *",
+            "companions_title": "👥 Accompagnatori (solo generalità anagrafiche)",
+            "guest_n": "Ospite",
+            "step3": "3. Caricamento Documento, Privacy e Firma",
+            "upload_label": "Allega foto del documento d'identità dell'ospite principale (Fronte/Retro - JPG, PNG, PDF) *",
+            "privacy_cb": "Dichiaro di aver letto l'informativa sulla privacy (GDPR) e autorizzo il trattamento dei dati personali ai fini della registrazione degli ospiti. *",
+            "rules_cb": "Accetto le Regole della Casa e le condizioni di locazione breve. *",
+            "signature": "Firma digitale (scrivi Nome e Cognome per confermare) *",
+            "submit_btn": "✅ Completa Check-in Online",
+            "err_dates": "La data di Check-out deve essere successiva al Check-in.",
+            "err_main": "Compila tutti i campi obbligatori dell'ospite principale: ",
+            "err_comp": "Compila tutte le generalità anagrafiche per ogni accompagnatore indicato.",
+            "err_doc": "Allega almeno una foto o scansione del documento d'identità.",
+            "err_consent": "Devi accettare sia l'informativa sulla privacy (GDPR) che le regole della casa.",
+            "success_msg": "🎉 Check-in online completato con successo!",
+            "next_steps": "**Prossimo passaggio — Arrivo e Accesso:**\n\nAbbiamo ricevuto i tuoi dati. L'host ti contatterà a breve su WhatsApp/Email per la breve verifica dell'identità (di persona o in videochiamata) e per inviarti le istruzioni definitive di accesso all'alloggio.",
+            "err_save": "Errore durante il salvataggio del check-in: "
+        },
+        "Deutsch": {
+            "title": "🛎️ Online Check-in — Al Badiya",
+            "lang_label": "🌐 Sprache",
+            "step1": "1. Aufenthaltsübersicht & Hausregeln",
+            "booking_id": "Buchung #",
+            "checkin": "Check-in",
+            "checkout": "Check-out",
+            "nights": "Nächte",
+            "new_info": "Bitte geben Sie unten Ihre Aufenthaltsdaten und die erforderlichen Gästedaten ein, um die Registrierung abzuschließen.",
+            "rules_expander": "📜 Hausregeln & Aufenthaltsbedingungen lesen",
+            "rules_text": """
+- **Check-in / Check-out:** Bitte halten Sie die mit dem Gastgeber vereinbarten Zeiten ein.
+- **Ruhezeiten:** Bitte respektieren Sie die Nachtruhe von 22:00 bis 08:00 Uhr.
+- **Gäste:** Der Zugang ist ausschließlich registrierten Gästen gestattet.
+- **Rauchen:** Das Rauchen in der Unterkunft ist strengstens untersagt.
+- **Identitätsprüfung:** Gemäß den geltenden Vorschriften beschleunigt der Online-Check-in Ihre Ankunft, eine kurze persönliche oder Video-Identitätsprüfung vor Schlüssel-/Codeübergabe bleibt jedoch erforderlich.
+            """,
+            "step2": "2. Aufenthalts- & Gästedaten",
+            "companions_q": "Wie viele weitere Gäste reisen mit Ihnen? (ohne Hauptgast)",
+            "stay_dates": "📅 Aufenthaltsdaten",
+            "ci_date": "Check-in-Datum *",
+            "co_date": "Check-out-Datum *",
+            "main_guest": "👤 Hauptgast (Familienoberhaupt / Gruppenleiter)",
+            "first_name": "Vorname *",
+            "last_name": "Nachname *",
+            "gender": "Geschlecht *",
+            "birth_date": "Geburtsdatum *",
+            "birth_place": "Geburtsort (Stadt oder Land) *",
+            "citizenship": "Staatsangehörigkeit *",
+            "residence": "Vollständige Wohnadresse (Straße, Stadt, Land) *",
+            "doc_type": "Dokumenttyp *",
+            "doc_options": ["Reisepass", "Personalausweis", "Führerschein"],
+            "doc_number": "Dokumentnummer *",
+            "doc_issue": "Ausstellungsort (Stadt oder Land) *",
+            "email": "E-Mail-Adresse *",
+            "phone": "Telefon / WhatsApp-Nummer *",
+            "companions_title": "👥 Mitreisende Gäste (nur persönliche Daten)",
+            "guest_n": "Gast",
+            "step3": "3. Dokument-Upload, Datenschutz & Unterschrift",
+            "upload_label": "Foto/Scan des Ausweisdokuments des Hauptgastes hochladen (Vorder-/Rückseite - JPG, PNG, PDF) *",
+            "privacy_cb": "Ich habe die Datenschutzerklärung (DSGVO) gelesen und stimme der Verarbeitung personenbezogener Daten zur Gästeregistrierung zu. *",
+            "rules_cb": "Ich akzeptiere die Hausregeln und Mietbedingungen. *",
+            "signature": "Digitale Unterschrift (vollständigen Namen zur Bestätigung eingeben) *",
+            "submit_btn": "✅ Online Check-in abschließen",
+            "err_dates": "Das Check-out-Datum muss nach dem Check-in-Datum liegen.",
+            "err_main": "Bitte füllen Sie alle Pflichtfelder für den Hauptgast aus: ",
+            "err_comp": "Bitte füllen Sie alle persönlichen Daten für jeden Mitreisenden aus.",
+            "err_doc": "Bitte laden Sie mindestens ein Foto oder einen Scan Ihres Ausweises hoch.",
+            "err_consent": "Sie müssen sowohl die Datenschutzerklärung als auch die Hausregeln akzeptieren.",
+            "success_msg": "🎉 Online Check-in erfolgreich abgeschlossen!",
+            "next_steps": "**Nächster Schritt — Ankunft & Zugang:**\n\nWir haben Ihre Daten erhalten. Der Gastgeber wird Sie in Kürze per WhatsApp/E-Mail für die kurze Identitätsprüfung (persönlich oder per Videoanruf) kontaktieren und Ihnen die Zugangsdaten senden.",
+            "err_save": "Fehler beim Speichern des Check-ins: "
+        },
+        "العربية": {
+            "title": "🛎️ تسجيل الوصول عبر الإنترنت — البادية (Al Badiya)",
+            "lang_label": "🌐 اللغة (Language)",
+            "step1": "1. ملخص الإقامة وقواعد المنزل",
+            "booking_id": "رقم الحجز",
+            "checkin": "تاريخ الوصول",
+            "checkout": "تاريخ المغادرة",
+            "nights": "الليالي",
+            "new_info": "يرجى إدخال تواريخ إقامتك وبيانات النزلاء المطلوبة أدناه لإتمام التسجيل.",
+            "rules_expander": "📜 قراءة قواعد المنزل وشروط الإقامة",
+            "rules_text": """
+- **الوصول / المغادرة:** يرجى الالتزام بالمواعيد المتفق عليها مع المضيف.
+- **ساعات الهدوء:** يرجى احترام الهدوء الليلي من الساعة 10:00 مساءً حتى 08:00 صباحاً.
+- **النزلاء:** يُسمح بالدخول للنزلاء المسجلين فقط.
+- **التدخين:** يُمنع التدخين منعاً باتاً داخل مكان الإقامة.
+- **التحقق من الهوية:** وفقاً للأنظمة المعمول بها، يسرّع التسجيل عبر الإنترنت إجراءات الوصول، ولكن يلزم إجراء تحقق سريع من الهوية (شخصياً أو عبر مكالمة فيديو) قبل تسليم المفاتيح أو رموز الدخول.
+            """,
+            "step2": "2. تواريخ الإقامة وبيانات النزلاء",
+            "companions_q": "كم عدد النزلاء المرافقين لك؟ (باستثناء النزيل الرئيسي)",
+            "stay_dates": "📅 تواريخ الإقامة",
+            "ci_date": "تاريخ الوصول *",
+            "co_date": "تاريخ المغادرة *",
+            "main_guest": "👤 النزيل الرئيسي (رب الأسرة / قائد المجموعة)",
+            "first_name": "الاسم الأول *",
+            "last_name": "اسم العائلة *",
+            "gender": "الجنس *",
+            "birth_date": "تاريخ الميلاد *",
+            "birth_place": "مكان الميلاد (المدينة أو الدولة) *",
+            "citizenship": "الجنسية *",
+            "residence": "عنوان الإقامة الكامل (الشارع، المدينة، الدولة) *",
+            "doc_type": "نوع الوثيقة *",
+            "doc_options": ["جواز سفر", "بطاقة الهوية الوطنية", "رخصة قيادة"],
+            "doc_number": "رقم الوثيقة *",
+            "doc_issue": "مكان الإصدار (المدينة أو الدولة) *",
+            "email": "البريد الإلكتروني *",
+            "phone": "رقم الهاتف / واتساب *",
+            "companions_title": "👥 المرافقون (البيانات الشخصية فقط)",
+            "guest_n": "نزيل",
+            "step3": "3. تحميل الوثيقة والخصوصية والتوقيع",
+            "upload_label": "أرفق صورة/نسخة من وثيقة هوية النزيل الرئيسي (JPG, PNG, PDF) *",
+            "privacy_cb": "لقد قرأت سياسة الخصوصية وأوافق على معالجة البيانات الشخصية لأغراض تسجيل النزلاء الإلزامي. *",
+            "rules_cb": "أوافق على قواعد المنزل وشروط الإقامة. *",
+            "signature": "التوقيع الرقمي (اكتب اسمك الكامل للتأكيد) *",
+            "submit_btn": "✅ إتمام تسجيل الوصول",
+            "err_dates": "يجب أن يكون تاريخ المغادرة بعد تاريخ الوصول.",
+            "err_main": "يرجى تعبئة جميع الحقول الإلزامية للنزيل الرئيسي: ",
+            "err_comp": "يرجى تعبئة جميع البيانات الشخصية لكل مرافق.",
+            "err_doc": "يرجى إرفاق صورة أو نسخة واحدة على الأقل من وثيقة الهوية.",
+            "err_consent": "يجب الموافقة على سياسة الخصوصية وقواعد المنزل.",
+            "success_msg": "🎉 تم إتمام تسجيل الوصول عبر الإنترنت بنجاح!",
+            "next_steps": "**الخطوة التالية — الوصول والدخول:**\n\nلقد استلمنا بياناتك. سيتواصل معك المضيف قريباً عبر واتساب أو البريد الإلكتروني للتحقق السريع من الهوية (شخصياً أو عبر مكالمة فيديو) وإرسال تعليمات الدخول النهائية.",
+            "err_save": "خطأ أثناء حفظ تسجيل الوصول: "
+        }
+    }
+
+    # Selettore lingua in alto a destra (Default: English)
+    col_t, col_lang = st.columns([3, 1])
+    with col_lang:
+        selected_lang = st.selectbox(
+            "🌐 Language",
+            options=list(TRANSLATIONS.keys()),
+            index=0
+        )
+    T = TRANSLATIONS[selected_lang]
+
+    with col_t:
+        st.title(T["title"])
+
+    # 1. Verifica prenotazione dal DB se ID numerico presente
+    booking_info = None
+    booking_id_int = int(checkin_param) if checkin_param.isdigit() else None
+
+    if supabase and booking_id_int is not None:
+        try:
+            res = supabase.table("bookings").select("*").eq("id", booking_id_int).execute()
+            if res.data:
+                booking_info = res.data[0]
+        except Exception:
+            booking_info = None
+
+    # --- STEP 1: RIEPILOGO SOGGIORNO & REGOLE ---
+    st.subheader(T["step1"])
+
+    if booking_info:
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric(T["booking_id"], booking_info.get("id", "-"))
+        c2.metric(T["checkin"], str(booking_info.get("check_in", "-"))[:10])
+        c3.metric(T["checkout"], str(booking_info.get("check_out", "-"))[:10])
+        c4.metric(T["nights"], booking_info.get("nights", "-"))
+        default_ci = pd.to_datetime(booking_info.get("check_in")).date()
+        default_co = pd.to_datetime(booking_info.get("check_out")).date()
+    else:
+        st.info(T["new_info"])
+        default_ci = date.today()
+        default_co = date.today() + timedelta(days=1)
+
+    with st.expander(T["rules_expander"], expanded=False):
+        st.markdown(T["rules_text"])
+
+    st.markdown("---")
+
+    st.subheader(T["step2"])
+    num_companions = st.number_input(
+        T["companions_q"],
+        min_value=0, max_value=10, value=0, step=1
+    )
+
+    with st.form("online_checkin_form"):
+        if not booking_info:
+            st.markdown(f"#### {T['stay_dates']}")
+            dc1, dc2 = st.columns(2)
+            guest_ci = dc1.date_input(T["ci_date"], value=default_ci)
+            guest_co = dc2.date_input(T["co_date"], value=default_co)
+            st.markdown("---")
+        else:
+            guest_ci = default_ci
+            guest_co = default_co
+
+        # --- OSPITE PRINCIPALE ---
+        st.markdown(f"#### {T['main_guest']}")
+        col1, col2, col3 = st.columns([2, 2, 1])
+        first_name = col1.text_input(T["first_name"])
+        last_name = col2.text_input(T["last_name"])
+        gender = col3.selectbox(T["gender"], ["M", "F"])
+
+        col4, col5, col6 = st.columns(3)
+        birth_date = col4.date_input(
+            T["birth_date"],
+            value=date(1990, 1, 1),
+            min_value=date(1920, 1, 1),
+            max_value=date.today()
+        )
+        birth_place = col5.text_input(T["birth_place"])
+        citizenship = col6.text_input(T["citizenship"])
+
+        residence = st.text_input(T["residence"])
+
+        col7, col8, col9 = st.columns(3)
+        doc_type = col7.selectbox(T["doc_type"], T["doc_options"])
+        doc_number = col8.text_input(T["doc_number"])
+        doc_issue_place = col9.text_input(T["doc_issue"])
+
+        col10, col11 = st.columns(2)
+        email = col10.text_input(T["email"])
+        phone = col11.text_input(T["phone"])
+
+        # --- ACCOMPAGNATORI ---
+        companions_data = []
+        if num_companions > 0:
+            st.markdown("---")
+            st.markdown(f"#### {T['companions_title']}")
+            for i in range(int(num_companions)):
+                st.markdown(f"**{T['guest_n']} {i + 2}**")
+                ac1, ac2, ac3 = st.columns([2, 2, 1])
+                c_first = ac1.text_input(T["first_name"], key=f"c_fn_{i}")
+                c_last = ac2.text_input(T["last_name"], key=f"c_ln_{i}")
+                c_gen = ac3.selectbox(T["gender"], ["M", "F"], key=f"c_gen_{i}")
+
+                ac4, ac5, ac6 = st.columns(3)
+                c_bdate = ac4.date_input(
+                    T["birth_date"],
+                    value=date(1995, 1, 1),
+                    min_value=date(1920, 1, 1),
+                    max_value=date.today(),
+                    key=f"c_bd_{i}"
+                )
+                c_bplace = ac5.text_input(T["birth_place"], key=f"c_bp_{i}")
+                c_cit = ac6.text_input(T["citizenship"], key=f"c_cit_{i}")
+
+                companions_data.append({
+                    "first_name": c_first,
+                    "last_name": c_last,
+                    "gender": c_gen,
+                    "birth_date": c_bdate.isoformat(),
+                    "birth_place": c_bplace,
+                    "citizenship": c_cit
+                })
+
+        # --- STEP 3: DOCUMENTO, PRIVACY E FIRMA ---
+        st.markdown("---")
+        st.subheader(T["step3"])
+
+        uploaded_docs = st.file_uploader(
+            T["upload_label"],
+            type=["jpg", "jpeg", "png", "pdf"],
+            accept_multiple_files=True
+        )
+
+        privacy_ok = st.checkbox(T["privacy_cb"])
+        rules_ok = st.checkbox(T["rules_cb"])
+        signature = st.text_input(T["signature"])
+
+        submitted = st.form_submit_button(T["submit_btn"], width="stretch")
+
+        if submitted:
+            missing_main = [
+                label.replace(" *", "") for label, val in [
+                    (T["first_name"], first_name), (T["last_name"], last_name),
+                    (T["birth_place"], birth_place), (T["citizenship"], citizenship),
+                    (T["residence"], residence), (T["doc_number"], doc_number),
+                    (T["doc_issue"], doc_issue_place), (T["email"], email),
+                    (T["phone"], phone), (T["signature"], signature)
+                ] if not val.strip()
+            ]
+
+            missing_comp = any(
+                not (c["first_name"].strip() and c["last_name"].strip() and c["birth_place"].strip() and c["citizenship"].strip())
+                for c in companions_data
+            )
+
+            if guest_co <= guest_ci:
+                st.error(T["err_dates"])
+            elif missing_main:
+                st.error(f"{T['err_main']}{', '.join(missing_main)}.")
+            elif missing_comp:
+                st.error(T["err_comp"])
+            elif not uploaded_docs:
+                st.error(T["err_doc"])
+            elif not privacy_ok or not rules_ok:
+                st.error(T["err_consent"])
+            else:
+                try:
+                    saved_files = []
+                    folder_tag = f"booking_{booking_id_int}" if booking_info else f"new_{datetime.now().strftime('%Y%m%d')}"
+                    for f in uploaded_docs:
+                        safe_name = f"{folder_tag}/{datetime.now().strftime('%Y%m%d%H%M%S')}_{f.name}"
+                        try:
+                            supabase.storage.from_("documents").upload(
+                                path=safe_name,
+                                file=f.getvalue(),
+                                file_options={"content-type": f.type}
+                            )
+                            saved_files.append(safe_name)
+                        except Exception:
+                            saved_files.append(f.name)
+
+                    checkin_payload = {
+                        "booking_id": booking_id_int if booking_info else None,
+                        "check_in_date": guest_ci.isoformat(),
+                        "check_out_date": guest_co.isoformat(),
+                        "first_name": first_name.strip(),
+                        "last_name": last_name.strip(),
+                        "gender": gender,
+                        "birth_date": birth_date.isoformat(),
+                        "birth_place": birth_place.strip(),
+                        "citizenship": citizenship.strip(),
+                        "residence": residence.strip(),
+                        "doc_type": doc_type,
+                        "doc_number": doc_number.strip(),
+                        "doc_issue_place": doc_issue_place.strip(),
+                        "email": email.strip(),
+                        "phone": phone.strip(),
+                        "companions": companions_data,
+                        "document_files": saved_files,
+                        "privacy_accepted": True,
+                        "rules_accepted": True,
+                        "digital_signature": signature.strip()
+                    }
+
+                    supabase.table("guest_checkins").insert(checkin_payload).execute()
+
+                    st.success(T["success_msg"])
+                    st.info(T["next_steps"])
+                except Exception as e:
+                    st.error(f"{T['err_save']}{e}")
+
+    st.stop()
 # ----------------------------------------------------
 # PROTEZIONE CON PASSWORD PER IL GESTIONALE INTERNO
 # ----------------------------------------------------

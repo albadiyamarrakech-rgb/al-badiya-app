@@ -3,3 +3,4 @@ pandas
 supabase
 matplotlib
 openpyxl
+jinja2
